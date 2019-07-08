@@ -38,6 +38,8 @@ class JobTrackerNode extends ClusterNode{
  // private val dataAccessFactory = DatabaseFactory.getDataAccessFactory(config).get
   private implicit lazy val databaseIoExecutionContext: ExecutionContextExecutor = context.system.dispatchers.lookup("akka.actor.database-io-dispatcher")
   private var databaseAccessProxy:ActorRef = _
+
+
   override def preStart(): Unit = {
     super.preStart()
     //dataAccessFactory.init()

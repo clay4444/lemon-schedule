@@ -28,6 +28,7 @@ object ZookeeperRegistry{
 /**
   * Created by gabry on 2018/4/17 9:56
   * Zookeeper注册中心类
+  * 也负责通知
   */
 class ZookeeperRegistry(val registryType:String,config:Config) extends AbstractRegistry(registryType,config) {
 
@@ -76,6 +77,7 @@ class ZookeeperRegistry(val registryType:String,config:Config) extends AbstractR
     */
   override def isConnected: Boolean = zkClient != null && zkClient.getState == CuratorFrameworkState.STARTED
 
+  // root / type - value  ->   root / type / value
   private def getLeafNodeByType(nodeType:String):Array[Node] = {
     try{
       val leafNodes = zkClient.getChildren.forPath(s"$rootPath").asScala.map{ child =>
@@ -89,10 +91,14 @@ class ZookeeperRegistry(val registryType:String,config:Config) extends AbstractR
     }
   }
 
+  // root / type - value
+  //节点值anchor里的 / 需要替换成 _
   private def pathFor(registerType:String,anchor:String):String = {
     val anchorChild = anchor.replaceAll(ZKPaths.PATH_SEPARATOR,ZookeeperRegistry.slashPlaceholder)
     s"$rootPath/$registerType-$anchorChild"
   }
+
+  //注册节点，root / type - value
   private def register(registerType:String,anchor:String) = {
     val path = pathFor(registerType,anchor)
     var isSuccess = false
@@ -109,6 +115,8 @@ class ZookeeperRegistry(val registryType:String,config:Config) extends AbstractR
     }
     isSuccess
   }
+
+  //取消注册
   private def unRegister(registerType:String,anchor:String):Unit = {
     val path = pathFor(registerType,anchor)
     try{
@@ -145,7 +153,7 @@ class ZookeeperRegistry(val registryType:String,config:Config) extends AbstractR
 
   /**
     * 返回所有节点，包括节点类型、节点值
-    *
+    * 返回之前要把节点值中的 / 替换回 _ ，因为加入的时候把节点值的 / 替换为了 _
     * @return 所有节点，包括节点类型、节点值
     */
   override def getAllNodes: Array[Node] = {
@@ -171,6 +179,7 @@ class ZookeeperRegistry(val registryType:String,config:Config) extends AbstractR
     zkClient.close()
   }
 
+  //zkPathChildrenCache 的监听器，监听到节点加入和离开后，使用通知机制通知 注册到注册中心的listener
   class MyPathChildrenCacheListener(notify:RegistryNotify) extends PathChildrenCacheListener{
     private def getNode(event:PathChildrenCacheEvent):Node = {
       // s"$rootPath/$registerType-$anchorChild"

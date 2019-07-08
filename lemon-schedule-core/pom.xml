@@ -10,6 +10,14 @@
     <inceptionYear>${inceptionYear}</inceptionYear>
     <description>作业调度核心模块。会被其他模块依赖</description>
     <dependencies>
+
+        <dependency>
+            <groupId>com.alibaba</groupId>
+            <artifactId>fastjson</artifactId>
+            <version>1.2.24</version>
+        </dependency>
+
+
         <dependency>
             <groupId>org.scala-lang</groupId>
             <artifactId>scala-library</artifactId>

@@ -9,10 +9,14 @@ import scala.util.Try
 /**
   * Created by gabry on 2018/5/9 14:48
   */
+//类似守护进程？
 final case class Daemon(system:ActorSystem,actor:ActorRef)
 
 object DaemonCreator {
+
+  //默认端口号
   private val defaultPort = 0
+
   def createDaemon(nodeProps:ClusterNodeProps,port:Option[Int]):Try[Daemon] = Try{
     val config = ConfigFactory.parseString(s"akka.remote.netty.tcp.port=${port.getOrElse(defaultPort)}")
       .withFallback(ConfigFactory.load())

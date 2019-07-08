@@ -11,7 +11,7 @@ import com.typesafe.config.Config
 
 /**
   * Created by gabry on 2018/3/23 15:15
-  * ClusterNode抽象节点类
+  * ClusterNode 抽象节点类
   */
 trait ClusterNodeProps{
   def props(args: Any*):Props
@@ -59,12 +59,13 @@ abstract class ClusterNode extends Actor with ActorLogging{
     }
   }
   private def joinCluster(): Unit ={
-    selfAnchor = self.path.toStringWithAddress(cluster.selfAddress)
+    selfAnchor = self.path.toStringWithAddress(cluster.selfAddress)   //这个self指的是当前Actor的引用；
     log.debug(s"Node actorAnchor = $selfAnchor")
 
+    //找到所有的种子节点的 Actor 地址
     val seeds = registry.getNodesByType(Constants.ROLE_SEED_NAME).map(seed=>ActorPath.fromString(seed.anchor).address)
 
-    if(seeds.isEmpty){
+    if(seeds.isEmpty){  //种子节点为空，加入自己；
       log.warning(s"Current cluster is empty ,now start first seed node and join self ${cluster.selfAddress}")
       cluster.join(cluster.selfAddress)
     }else{
@@ -72,16 +73,18 @@ abstract class ClusterNode extends Actor with ActorLogging{
       cluster.joinSeedNodes( seeds.toList )
     }
 
-    log.info(s"Current node roles = ${cluster.selfRoles}")
+    log.info(s"Current node roles = ${cluster.selfRoles}")  //此成员的角色；
     cluster.selfRoles.foreach{ role =>
-      registry.registerNode(Node(role,selfAnchor))
+      registry.registerNode(Node(role,selfAnchor))  //注册到注册中心； 节点类型<角色名>  节点值<Actor地址>
     }
   }
+
+  //生命周期，开始之前
   override def preStart(): Unit = {
-    initRegistry()
-    joinCluster()
+    initRegistry() //初始化注册中心；
+    joinCluster()   //加入集群
     cluster.subscribe(self, initialStateMode = InitialStateAsSnapshot,
-      classOf[MemberEvent]
+      classOf[MemberEvent]          //订阅这几个事件，
       ,classOf[UnreachableMember]
       ,classOf[ReachableMember]
       ,classOf[LeaderChanged]
@@ -89,12 +92,13 @@ abstract class ClusterNode extends Actor with ActorLogging{
     log.info(s"Node [${this.getClass}] started at $self")
   }
 
+  //生命周期，结束之后，做一些清理和释放连接的工作；
   override def postStop(): Unit = {
     cluster.selfRoles.foreach{ role=>
-      registry.unRegisterNode(Node(role,selfAnchor))
+      registry.unRegisterNode(Node(role,selfAnchor)) //从注册中心取消当前节点
     }
-    registry.disConnect()
-    cluster.unsubscribe(self)
+    registry.disConnect()  //取消到注册中心的连接
+    cluster.unsubscribe(self)  //防止内存泄漏
     log.warning(s"Node [${this.getClass}] at $self stopped")
   }
 
@@ -131,11 +135,13 @@ abstract class ClusterNode extends Actor with ActorLogging{
     /**
       * Member status changed to `MemberStatus.Exiting` and will be removed
       * when all members have seen the `Exiting` status.
+      * 当所有的节点都看到该节点的退出状态时，这个节点的状态被标记为退出，并从cluster中移除，
       */
     case MemberExited(member)=>
       log.info(s"Member exited $member")
     /**
       * Member status changed to Leaving.
+      * 节点离开
       */
     case MemberLeft(member)=>
       log.info(s"Member left $member")
@@ -143,12 +149,14 @@ abstract class ClusterNode extends Actor with ActorLogging{
       * A member is considered as reachable by the failure detector
       * after having been unreachable.
       * @see [[UnreachableMember]]
+      *     无法访问之后 -> 可访问   ？
       */
     case ReachableMember(member)=>
       log.info(s"Member reachable $member")
 
     /**
       * Member status changed to Up.
+      * 节点上线
       */
     case MemberUp(member) =>
       log.info(s"Member is up,member =$member,sender ${sender()},self = $self,selfWithAddress = ${self.path.toStringWithAddress(cluster.selfAddress)}")
@@ -157,6 +165,7 @@ abstract class ClusterNode extends Actor with ActorLogging{
 
     /**
       * A member is considered as unreachable by the failure detector.
+      * 失败检测器发现节点无法访问，所以设置为不可到达
       */
     case UnreachableMember(member) =>
       log.info(s"Member unreachable $member ,now down it")
@@ -169,6 +178,9 @@ abstract class ClusterNode extends Actor with ActorLogging{
       * after being detected as unreachable and downed.
       * When `previousStatus` is `MemberStatus.Exiting` the node was removed
       * after graceful leaving and exiting.
+      * 从cluster中移除，
+      * 如果之前的状态是Down，说明是被失败检测器检测到后移除的，
+      * 如果之前的状态是Exiting，说明是优雅退出的，
       */
     case MemberRemoved(member, previousStatus) =>
       log.info(s"Member removed $member ,previousStatus is $previousStatus")

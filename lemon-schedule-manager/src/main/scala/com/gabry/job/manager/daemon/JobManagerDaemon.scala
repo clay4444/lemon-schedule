@@ -8,7 +8,7 @@ import scala.util.{Failure, Success}
 
 /**
   * Created by gabry on 2018/3/29 10:42
-  * 启动JobManager节点
+  * 启动JobManager节点的主类
   */
 object JobManagerDaemon {
 
