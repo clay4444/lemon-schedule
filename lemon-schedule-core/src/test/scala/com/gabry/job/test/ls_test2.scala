@@ -5,7 +5,7 @@ import com.alibaba.fastjson.{JSON, JSONObject}
 object ls_test2 {
 
   implicit class JsonHelper(val sc:StringContext) extends AnyVal{
-    def l(args:Any*):String={
+    def json(args:Any*):String={
       val expressions=args.iterator
 
       val mid = expressions.next.toString
@@ -17,8 +17,8 @@ object ls_test2 {
   def main(args: Array[String]): Unit = {
 
     val last_pt = 20190707
-    val origin = "abc${last_pt}"
+    val origin = s"abc${last_pt}"
 
-    println(s"${origin}")
+    println(json"${origin}")
   }
 }

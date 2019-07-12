@@ -75,11 +75,12 @@ abstract class ClusterNode extends Actor with ActorLogging{
 
     log.info(s"Current node roles = ${cluster.selfRoles}")  //此成员的角色；
     cluster.selfRoles.foreach{ role =>
-      registry.registerNode(Node(role,selfAnchor))  //注册到注册中心； 节点类型<角色名>  节点值<Actor地址>
+      registry.registerNode(Node(role,selfAnchor))  //注册到注册中心； 节点类型<角色名> 应该是jobchacker，worker，scheduler三个角色  节点值<Actor地址>
     }
   }
 
   //生命周期，开始之前
+  //postRestart，默认重启之后也是调用这个方法
   override def preStart(): Unit = {
     initRegistry() //初始化注册中心；
     joinCluster()   //加入集群
@@ -93,6 +94,7 @@ abstract class ClusterNode extends Actor with ActorLogging{
   }
 
   //生命周期，结束之后，做一些清理和释放连接的工作；
+  //preRestart，默认重启之前也会调这个方法
   override def postStop(): Unit = {
     cluster.selfRoles.foreach{ role=>
       registry.unRegisterNode(Node(role,selfAnchor)) //从注册中心取消当前节点

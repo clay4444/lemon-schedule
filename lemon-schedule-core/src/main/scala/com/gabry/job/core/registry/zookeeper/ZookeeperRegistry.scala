@@ -77,7 +77,7 @@ class ZookeeperRegistry(val registryType:String,config:Config) extends AbstractR
     */
   override def isConnected: Boolean = zkClient != null && zkClient.getState == CuratorFrameworkState.STARTED
 
-  // root / type - value  ->   root / type / value
+  // root / type - value  ->   Node(type,value) 注意要把value中的下划线替换会斜杠，因为存的时候把节点值里的斜杠替换为了下划线，这是因为zk是用斜杠做路径区分的，不替换的话节点值会变成多级
   private def getLeafNodeByType(nodeType:String):Array[Node] = {
     try{
       val leafNodes = zkClient.getChildren.forPath(s"$rootPath").asScala.map{ child =>
