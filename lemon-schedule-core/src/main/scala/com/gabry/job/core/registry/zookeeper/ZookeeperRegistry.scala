@@ -92,7 +92,7 @@ class ZookeeperRegistry(val registryType:String,config:Config) extends AbstractR
   }
 
   // root / type - value
-  //节点值anchor里的 / 需要替换成 _
+  //节点值anchor里的 / 需要替换成 _ 下划线，防止和zk的层级弄混
   private def pathFor(registerType:String,anchor:String):String = {
     val anchorChild = anchor.replaceAll(ZKPaths.PATH_SEPARATOR,ZookeeperRegistry.slashPlaceholder)
     s"$rootPath/$registerType-$anchorChild"
@@ -107,7 +107,7 @@ class ZookeeperRegistry(val registryType:String,config:Config) extends AbstractR
       if( pathCheck != null ){
         zkClient.delete().forPath(path)
       }
-      zkClient.create().withMode(CreateMode.EPHEMERAL).forPath(path,anchor.getBytes)
+      zkClient.create().withMode(CreateMode.EPHEMERAL).forPath(path,anchor.getBytes)  //注册值的时候如果有 / 则保持不变
       isSuccess = true
     }catch{
       case ex:Exception =>
@@ -153,7 +153,7 @@ class ZookeeperRegistry(val registryType:String,config:Config) extends AbstractR
 
   /**
     * 返回所有节点，包括节点类型、节点值
-    * 返回之前要把节点值中的 / 替换回 _ ，因为加入的时候把节点值的 / 替换为了 _
+    * 返回之前要把节点值中的 _ 替换回 / ，因为加入的时候把节点值的 / 替换为了 _
     * @return 所有节点，包括节点类型、节点值
     */
   override def getAllNodes: Array[Node] = {
