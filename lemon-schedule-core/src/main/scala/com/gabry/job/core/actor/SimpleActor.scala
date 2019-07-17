@@ -16,6 +16,9 @@ trait SimpleActor extends Actor with ActorLogging{
   protected lazy final val selfAddress = context.system.asInstanceOf[ExtendedActorSystem].provider.getDefaultAddress
   /**
     * Actor当前的anchor。也就是带Address的path信息
+    * path:         akka://ClusterSystem/user/frontend
+    * selfAddress:  akka.tcp://ClusterSystem@127.0.0.1:2551
+    * selfAnchor:   akka.tcp://ClusterSystem@127.0.0.1:2551/user/frontend
     */
   protected lazy final val selfAnchor =  self.path.toStringWithAddress(selfAddress)
   /**

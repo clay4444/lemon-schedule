@@ -35,16 +35,21 @@ class JobTrackerNode extends ClusterNode{
 
   private var schedulerRouter = Router(RoundRobinRoutingLogic(),Vector.empty[ActorSelectionRoutee])
   private var jobTracker:ActorRef = _
- // private val dataAccessFactory = DatabaseFactory.getDataAccessFactory(config).get
+  // private val dataAccessFactory = DatabaseFactory.getDataAccessFactory(config).get
+
+  //准备一个专门用于访问数据库的线程池
   private implicit lazy val databaseIoExecutionContext: ExecutionContextExecutor = context.system.dispatchers.lookup("akka.actor.database-io-dispatcher")
-  private var databaseAccessProxy:ActorRef = _
+  private var databaseAccessProxy:ActorRef = _     //访问数据库的一个代理，作为JobTrackerNode的孩子
 
 
   override def preStart(): Unit = {
     super.preStart()
     //dataAccessFactory.init()
+
+    //创建代理actor，负责数据访问操作；
     databaseAccessProxy = context.actorOf(Props.create(classOf[DataAccessProxy],databaseIoExecutionContext),"DataAccessProxy")
 
+    //又创建一个jobTracker Actor，作为子孩子，还把数据访问的actor传递给了这个 jobTracker Actor
     jobTracker = context.actorOf(JobTrackerActor.props(databaseAccessProxy))
     context.watch(jobTracker)
   }
@@ -73,6 +78,11 @@ class JobTrackerNode extends ClusterNode{
         replyTo ! JobTrackerEvent.JobSubmitFailed("No Scheduler node found")
       }
   }
+
+  /**
+    * 当发现scheduler节点加入集群时，加到routee中，在父类的 MemberUp事件发生时 回调；
+    * @param member 加入集群的节点
+    */
   override def register(member: Member): Unit = {
     if(member.hasRole(Constants.ROLE_SCHEDULER_NAME)){
       val scheduleNode = context.system.actorSelection(RootActorPath(member.address)/ "user" / Constants.ROLE_SCHEDULER_NAME)
@@ -80,6 +90,7 @@ class JobTrackerNode extends ClusterNode{
     }
   }
 
+  //从routee中取消这个Member，在父类的 UnreachableMember 事件发生时 回调；
   override def unRegister(member: Member): Unit = {
     if(member.hasRole(Constants.ROLE_SCHEDULER_NAME)){
       val scheduleNode = context.system.actorSelection(RootActorPath(member.address)/ "user" / Constants.ROLE_SCHEDULER_NAME)

@@ -11,7 +11,7 @@ import com.gabry.job.core.domain.{Job, JobContext, TaskClassInfo}
   * 事件（event）的接口，标志发生了某件事
   */
 // TODO: 注意所有的事件case class都需要简化字段，去掉不必需的字段，以节省网络带宽。前期阶段可先不考虑该问题
-trait Event extends Message
+trait Event extends Message   //Message中只有一个at字段，取的是当前时间
 
 trait FailedEvent extends Event{
   def reason:String

@@ -19,7 +19,10 @@ object DataAccessProxy{
   def props(databaseIoExecutionContext: ExecutionContextExecutor):Props = Props(new DataAccessProxy(databaseIoExecutionContext))
 }
 class DataAccessProxy private (databaseIoExecutionContext: ExecutionContextExecutor) extends SimpleActor{
+
+  //数据访问的线程池，构造这个实例的时候传进来的，
   private implicit val databaseExecutionContext:ExecutionContextExecutor = databaseIoExecutionContext
+
   private val dataAccessFactory = DatabaseFactory.getDataAccessFactory(config).get
   private var jobAccessProxy:ActorRef = _
   private var scheduleAccessProxy: ActorRef = _

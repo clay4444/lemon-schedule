@@ -8,6 +8,7 @@ import com.typesafe.config.{Config, ConfigFactory}
 import scala.util.{Failure, Success, Try}
 /**
   * Created by gabry on 2018/5/3 14:06
+  * 根据传入的访问数据库的类型返回一个 数据访问工厂，现只支持slick
   */
 object DatabaseFactory {
 
