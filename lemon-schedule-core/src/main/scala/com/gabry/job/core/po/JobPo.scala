@@ -10,7 +10,7 @@ import com.gabry.job.core.domain.UID
 case class JobPo(uid: UID,    //作业UID值,唯一
                  name: String,  //作业名称，唯一
                  className: String,  //job对应的类名称
-                 metaData: String,  //
+                 metaData: String,   // ? 作业执行参数 json
                  dataTimeOffset: Long,
                  dataTimeOffsetUnit: TimeUnit,
                  startTime: Long,    //作业的开始时间，默认是当前时间
