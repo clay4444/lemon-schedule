@@ -6,13 +6,16 @@ import com.gabry.job.core.domain.UID
 
 /**
   * Created by gabry on 2018/4/9 18:53
+  * 和Job实体的关系是这个实体是映射和mysql的关系的实体，除了代表主键的UID没有，其他都是一一对应的
+  * 它和Job的属性值可能有些不太一样，例如clusterName对应Job的cluster，groupName对应Job的group
+  * 而且这里带 ? 的都是Job中不存在的；
   */
 case class JobPo(uid: UID,    //作业UID值,唯一
                  name: String,  //作业名称，唯一
                  className: String,  //job对应的类名称
                  metaData: String,   // ? 作业执行参数 json
-                 dataTimeOffset: Long,
-                 dataTimeOffsetUnit: TimeUnit,
+                 dataTimeOffset: Long,   // ?
+                 dataTimeOffsetUnit: TimeUnit,   // ？
                  startTime: Long,    //作业的开始时间，默认是当前时间
                  cron: String,       //job执行的cron表达式
                  priority: Int,      //作业的优先级，数值越大优先级越低，0是最大优先级。默认是最小优先级

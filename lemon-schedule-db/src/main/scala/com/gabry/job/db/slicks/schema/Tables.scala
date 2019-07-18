@@ -2,12 +2,12 @@ package com.gabry.job.db.slicks.schema
 // AUTO-GENERATED Slick data model
 /** Stand-alone Slick data model for immediate use */
 object Tables extends {
-  val profile = slick.jdbc.MySQLProfile
+  val profile = slick.jdbc.MySQLProfile   //重写JdbcProfile，代表使用mysql存储；
 } with Tables
 
 /** Slick data model trait for extension, choice of backend or usage in the cake pattern. (Make sure to initialize this late.) */
 trait Tables {
-  val profile: slick.jdbc.JdbcProfile
+  val profile: slick.jdbc.JdbcProfile   //MySQLProfile的父类，JdbcProfile的子类支持mysql、oracle、sqlServer等存储，让我们自由选择；
   import profile.api._
   // NOTE: GetResult mappers for plain SQL are only generated for tables where Slick knows how to map the types of all columns.
   import slick.jdbc.{GetResult => GR}
@@ -64,9 +64,9 @@ trait Tables {
   lazy val Dependencies = new TableQuery(tag => new Dependencies(tag))
 
   /** Entity class storing rows of table Jobs
-   *  @param rowId Database column row_id SqlType(BIGINT), AutoInc, PrimaryKey
-   *  @param uid Database column uid SqlType(VARCHAR), Length(64,true)
-   *  @param name Database column name SqlType(VARCHAR), Length(32,true)
+   *  @param rowId Database column row_id SqlType(BIGINT), AutoInc, PrimaryKey   主键
+   *  @param uid Database column uid SqlType(VARCHAR), Length(64,true)           作业UID值,唯一
+   *  @param name Database column name SqlType(VARCHAR), Length(32,true)         作业名称，唯一
    *  @param className Database column class_name SqlType(VARCHAR), Length(64,true)
    *  @param metaData Database column meta_data SqlType(JSON), Length(1073741824,true)
    *  @param dataTimeOffset Database column data_time_offset SqlType(BIGINT)
