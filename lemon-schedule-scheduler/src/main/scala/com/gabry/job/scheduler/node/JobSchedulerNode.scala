@@ -37,10 +37,13 @@ class JobSchedulerNode extends ClusterNode{
 
   override def preStart(): Unit = {
     super.preStart()
-    dataAccessFactory.init()
+    dataAccessFactory.init() //这个init和下面的 dataAccessFactory.destroy() 好像没用啊，因为 DataAccessProxy 这个actor内部会调用init和destroy方法
+
+    //dataAccessProxy 数据访问的actor，它会继续初始化三个子Actor，
     dataAccessProxy = context.actorOf(DataAccessProxy.props(databaseIoExecutionContext),"dataAccessProxy")
     context.watch(dataAccessProxy)
 
+    //schedulerActor 
     schedulerActor = context.actorOf(JobSchedulerActor.props(dataAccessProxy,selfAnchor),"schedulerActor")
 
     context.watch(schedulerActor)

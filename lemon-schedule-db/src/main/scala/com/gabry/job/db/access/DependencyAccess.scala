@@ -27,7 +27,7 @@ trait DependencyAccess extends DataAccess[UID,DependencyPo]{
     * 在一个事务里一次性删除所有依赖，并插入多个依赖
     * @param jobUid 待删除的作业ID
     * @param data 待插入的事务
-    * @return 插入的最终结果
+    * @return 插入的最终结果 (影响的行数)
     */
   def deleteAllAndInsertMany(jobUid:UID, data: Array[DependencyPo])(implicit global: ExecutionContext): Future[Option[Int]]
   /**

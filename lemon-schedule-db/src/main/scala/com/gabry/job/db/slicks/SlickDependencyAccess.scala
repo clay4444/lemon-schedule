@@ -114,7 +114,7 @@ private[db] class SlickDependencyAccess(db:Database) extends  SlickDataAccess(db
   }
 
   /**
-    * 查询任务的依赖
+    * 查询任务的依赖是否都跑完了
     * @param jobUid 当前作业ID
     * @param dataTime 当前作业数据时间
     * @return true依赖满足，false依赖不满足
@@ -128,7 +128,7 @@ private[db] class SlickDependencyAccess(db:Database) extends  SlickDataAccess(db
     }.map{case (jd,s)=>
       (jd._1,jd._2,s.map(_.succeed))
     }
-    // 如果没有依赖，上面也会返回false
+    // 如果没有依赖，上面也会返回false，需要在下面处理一下
     // 有结果，并且结果中有false和没有结果的情况是不一样的
     val selectResult = db.run(selectAction.result).map(res=>
       res.forall{
@@ -145,7 +145,6 @@ private[db] class SlickDependencyAccess(db:Database) extends  SlickDataAccess(db
 
   /**
     * 在一个事务里一次性删除所有依赖，并插入多个依赖
-    *
     * @param jobUid 待删除的作业ID
     * @param data  待插入的事务
     * @return 插入的最终结果

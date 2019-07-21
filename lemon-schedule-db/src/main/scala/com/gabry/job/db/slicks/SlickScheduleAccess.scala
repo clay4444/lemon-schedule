@@ -47,7 +47,6 @@ private[db] class SlickScheduleAccess(db:Database) extends SlickDataAccess(db) w
                           update_time=null"""
   /**
     * 插入一个schedule
-    *
     * @param schedule 插入后的schedule
     * @return 插入的数量
     */
@@ -98,7 +97,7 @@ private[db] class SlickScheduleAccess(db:Database) extends SlickDataAccess(db) w
     */
   override def selectUnDispatchSchedule(jobUid:UID, scheduleNode: String, triggerTime: Long, maxNum:Int)(block: SchedulePo => Unit)(implicit global: ExecutionContext): Unit = {
     val selectAction = tables
-      .filter(r=>r.jobUid === jobUid && r.scheduleNode === scheduleNode && r.triggerTime <= triggerTime && r.dispatched === false )
+      .filter(r=>r.jobUid === jobUid && r.scheduleNode === scheduleNode && r.triggerTime <= triggerTime && r.dispatched === false )  //只选择未被调度的
       .take(maxNum)
 
     db.stream(selectAction.result).foreach{ row =>

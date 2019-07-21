@@ -36,7 +36,7 @@ class JobTrackerActor private (dataAccessProxy:ActorRef) extends SimpleActor{
         // 主键冲突类的失败进行特殊处理
         case _:SQLIntegrityConstraintViolationException if job.replaceIfExist =>
           log.warning("作业主键冲突，且允许替换原有作业")
-          dataAccessProxy ! DatabaseCommand.Select(insertingJobPo,self,originCommand)
+          dataAccessProxy ! DatabaseCommand.Select(insertingJobPo,self,originCommand) //发送一个select，收到select会继续发送update
 
         case _:SQLIntegrityConstraintViolationException =>
           log.warning("Job already exists")
@@ -47,6 +47,9 @@ class JobTrackerActor private (dataAccessProxy:ActorRef) extends SimpleActor{
           replyTo ! JobTrackerEvent.JobSubmitFailed(s"Job insert failed, unknown reason: $unKnownReason")
       }
 
+    /**
+      * 更新失败
+      */
     case Status.Failure(
     DataAccessProxyException(DatabaseCommand.Update(_:JobPo,_:JobPo,_,originCommand: JobTrackerCommand.SubmitJob)
     ,reason)) =>
@@ -54,11 +57,18 @@ class JobTrackerActor private (dataAccessProxy:ActorRef) extends SimpleActor{
       log.error(s"Replacing Job .Job update failed,reason: $reason")
       originCommand.replyTo ! JobTrackerEvent.JobSubmitFailed(s"Replacing Job .Job update failed,reason: $reason")
 
+    /**
+      * 查询失败
+      */
     case Status.Failure(DataAccessProxyException(DatabaseCommand.Select(_:JobPo,_,originCommand:JobTrackerCommand.SubmitJob),reason)) =>
       log.error(reason,reason.getMessage)
       log.error(s"Replacing Job .Old job select failed,reason: $reason")
       originCommand.replyTo ! JobTrackerEvent.JobSubmitFailed(s"Replacing Job .Old job select failed,reason: $reason")
 
+    /**
+      * 插入依赖失败
+      * 此时后续不会再添加调度；
+      */
     case Status.Failure(
     DataAccessProxyException(DatabaseCommand.Insert(_:Array[DependencyPo],_,originCommand:JobTrackerCommand.SubmitJob)
     ,reason)) =>
@@ -68,6 +78,10 @@ class JobTrackerActor private (dataAccessProxy:ActorRef) extends SimpleActor{
       originCommand.replyTo ! JobTrackerEvent.JobSubmitFailed(s"Dependency insert failed,reason: ${reason.getMessage}")
   }
 
+  /**
+    * 处理插入job返回之后的后续工作，例如插入依赖、
+    * @return
+    */
   private def dbEventReceive:Receive = {
     /**
       * Job插入成功
@@ -75,18 +89,20 @@ class JobTrackerActor private (dataAccessProxy:ActorRef) extends SimpleActor{
       */
     case DatabaseEvent.Inserted(Some(insertedJobPo:JobPo),originCmd:JobTrackerCommand.SubmitJob) =>
       log.debug(s"Job inserted to db $insertedJobPo")
-      val dependencyPos = originCmd.dependency.map(r=>JobTrackerNode.createDependencyPo(insertedJobPo.uid,r))
-      dataAccessProxy ! DatabaseCommand.Insert(dependencyPos,self,originCmd)
+      val dependencyPos = originCmd.dependency.map(r=>JobTrackerNode.createDependencyPo(insertedJobPo.uid,r)) //生成依赖实体
+      dataAccessProxy ! DatabaseCommand.Insert(dependencyPos,self,originCmd)  //插入依赖
 
     /**
       * Dependency插入成功
       * 然后告诉发送方作业提交结果
       */
     case DatabaseEvent.BatchInserted(insertedNum,headDependency:Option[DependencyPo],JobTrackerCommand.SubmitJob(job,dependency,replyTo)) =>
-      // 插入成功后，给调度器发送调度命令，并告知客户端提交结果
+      // 插入成功后，给调度器发送调度命令，并告知客户端提交结果（父actor做的）
       log.debug(s"Dependency [${dependency.mkString(",")}] inserted to db")
       // 将消息发送给父节点，由父节点处理调度消息。因为调度器节点信息只有父节点有
       context.parent ! JobTrackerCommand.ScheduleJob(job,replyTo)
+
+    //===================正常流程到这里就结束了，exceptionEventReceive和下面的逻辑都是失败情况的处理==============================================================
 
     /**
       * Job因为主键冲突插入失败，且允许替换原来作业时，查出来的原Job信息
@@ -100,12 +116,12 @@ class JobTrackerActor private (dataAccessProxy:ActorRef) extends SimpleActor{
           // 但要考虑各种异常情况，例如旧调度器已经异常终止，无法响应消息；就调度器暂时无法终止调度
           oldJob.schedulerNode.map( node => context.actorSelection(node) ).foreach{ oldScheduler =>
             log.warning(s"原有作业找到，现在停止原调度器调度$oldJob")
-            oldScheduler ! JobSchedulerCommand.StopScheduleJob(oldJob)
+            oldScheduler ! JobSchedulerCommand.StopScheduleJob(oldJob) //在原有调度器上停止调度
           }
           // 更新目前job到数据库，并重新调度
           val updatingJobPo:JobPo = job
           // 替换原命令行作业ID
-          dataAccessProxy ! DatabaseCommand.Update(oldJob,updatingJobPo,self,originCommand)
+          dataAccessProxy ! DatabaseCommand.Update(oldJob,updatingJobPo,self,originCommand) //替换原有作业
 
         case None =>
 
@@ -118,8 +134,10 @@ class JobTrackerActor private (dataAccessProxy:ActorRef) extends SimpleActor{
       log.debug(s"Replacing Job updated job is $updatedJobPo")
 
       val dependencyPos = dependency.map(r=>JobTrackerNode.createDependencyPo(oldJobPo.uid,r))
-      dataAccessProxy ! DatabaseCommand.Insert(dependencyPos,self,originCommand)
+      dataAccessProxy ! DatabaseCommand.Insert(dependencyPos,self,originCommand)   //继续插入依赖，插入依赖后又会重新加入调度
   }
+
+  //处理command命令
   private def commandEventReceive:Receive = {
     /**
       * 收到客户端提交Job的命令
@@ -128,7 +146,7 @@ class JobTrackerActor private (dataAccessProxy:ActorRef) extends SimpleActor{
     case originCmd @ JobTrackerCommand.SubmitJob(job,_,_) =>
       log.debug(s"Receive SubmitJob Command $originCmd")
       val jobPo:JobPo = job
-      dataAccessProxy ! DatabaseCommand.Insert(jobPo,self,originCmd)
+      dataAccessProxy ! DatabaseCommand.Insert(jobPo,self,originCmd)  //发送方设置为self，原始command设置为 JobTrackerCommand.SubmitJob
 
   }
   /**

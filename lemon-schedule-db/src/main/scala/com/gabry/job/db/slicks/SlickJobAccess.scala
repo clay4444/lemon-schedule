@@ -41,7 +41,7 @@ private[db] class SlickJobAccess(db:Database) extends SlickDataAccess(db) with J
 
   override def insert(job: JobPo)(implicit global: ExecutionContext): Future[JobPo] = {
    val insertAction = (tables
-     returning
+     returning   //指定返回插入的 rowId，默认返回的是影响的行数
      tables.map(_.rowId)) into ((job,newId)=>job.copy(rowId=newId)) += job
     db.run(insertAction).map(r=>jobRow2bPo(r))
   }

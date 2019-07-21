@@ -39,12 +39,13 @@ class DataAccessProxy private (databaseIoExecutionContext: ExecutionContextExecu
     taskAccessProxy = context.actorOf(TaskAccessProxy.props(dataAccessFactory.getTaskAccess,config),"TaskAccessProxy")
   }
   override def postStop(): Unit = {
-    super.preStart()
+    //super.preStart() 这里为啥是调用preStart
+    super.postStop()
     dataAccessFactory.destroy()
   }
 
   /**
-    * 用户自定义事件处理函数
+    * 用户自定义事件处理函数，直接给底层的三个子actor发消息
     */
   override def userDefineEventReceive: Receive = {
     case cmd @ DatabaseCommand.Insert(_:JobPo,_,_) =>

@@ -60,22 +60,32 @@ class JobTrackerNode extends ClusterNode{
     //dataAccessFactory.destroy()
   }
 
+  /**
+    * 也就是说：JobTrackerNode只处理两种消息：
+    * 1.提交Job，通过JobTrackerActor里的databaseAccessProxy这个actor来做(也就是使用其中的JobAccessProxy)
+    * 2.调度Job，直接给调度节点发送了一条 JobSchedulerCommand.ScheduleJob 的消息，并设置发送方为自己，（调度job的消息是jobTracker发给它的）
+    *
+    * 所以流程是：JobTrackerNode 接收一个Job，然后把插入Job的工作交给JobTrackerActor，也就是jobTracker，jobTracker 通过 JobTrackerNode 传给它的DataAccessProxy往数据库插入Job信息(可能有存在就更新的情况)，
+    * 插入依赖信息。然后 jobTracker 又反过来，把刚刚插入的这个job信息，传给JobTrackerNode(通过发消息的方式)，让JobTrackerNode进行调度( 因为只有JobTrackerNode可以路由到调度器 )
+    */
   override def userDefineEventReceive: Receive = {
     /**
-      * 收到客户端提交Job的命令
-      * 将Job插入数据库，并将插入的结果，以JobInserted事件的形式pipe给self
+      * 收到客户端提交Job的命令 给jobTracker发消息，
+      * 将Job插入数据库，并将插入的结果，以JobInserted事件的形式pipe给 jobTracker 自己
       */
     case originCmd @ JobTrackerCommand.SubmitJob(job,_,_) =>
       log.debug(s"Receive SubmitJob Command $originCmd")
       jobTracker ! originCmd
+
+    //开始调度作业，发送消息给调度节点（这个消息是 jobTracker 这个子actor 发送给他的）
     case JobTrackerCommand.ScheduleJob(job,replyTo) =>
       if(schedulerRouter.routees.nonEmpty){
-        schedulerRouter.route(JobSchedulerCommand.ScheduleJob(job,self),self)
+        schedulerRouter.route(JobSchedulerCommand.ScheduleJob(job,self),self)   //设置回复给自己？可是self没有定义处理这个的返回消息的逻辑啊？
         log.info(s"Send ScheduleJob command to scheduler job.id = ${job.uid}")
         // 此处将插入后更新的Job对象发送给reply
-        replyTo ! JobTrackerEvent.JobSubmitted(job)
+        replyTo ! JobTrackerEvent.JobSubmitted(job) //成功加入调度了，
       }else{
-        replyTo ! JobTrackerEvent.JobSubmitFailed("No Scheduler node found")
+        replyTo ! JobTrackerEvent.JobSubmitFailed("No Scheduler node found")  //没有可用的调度节点
       }
   }
 

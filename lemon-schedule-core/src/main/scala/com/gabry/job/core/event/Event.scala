@@ -71,8 +71,11 @@ object TaskEvent{
   final case class DependencyState(passed:Boolean) extends Event
 }
 
+//JobTracker 事件
 object JobTrackerEvent{
+  //Job提交成功
   final case class JobSubmitted(submittedJob:Job) extends Event
+  //Job提交失败
   final case class JobSubmitFailed(reason: String) extends FailedEvent
 }
 

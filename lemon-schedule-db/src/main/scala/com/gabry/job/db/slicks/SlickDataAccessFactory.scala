@@ -25,10 +25,10 @@ class SlickDataAccessFactory(config:Config) extends DataAccessFactory{
 
   override def init(): Unit = {
     database = Database.forConfig("",config)
-    jobAccess = new SlickJobAccess(database)
-    dependencyAccess = new SlickDependencyAccess(database)
-    scheduleAccess = new SlickScheduleAccess(database)
-    taskAccess = new SlickTaskAccess(database)
+    jobAccess = new SlickJobAccess(database)    //Job增删改查相关
+    dependencyAccess = new SlickDependencyAccess(database)  //检查依赖的方法在DependencyAccess里
+    scheduleAccess = new SlickScheduleAccess(database) //调度相关
+    taskAccess = new SlickTaskAccess(database)  //job相关
   }
 
   override def destroy(): Unit = {

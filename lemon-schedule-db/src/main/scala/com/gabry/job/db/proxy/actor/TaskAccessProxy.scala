@@ -32,13 +32,17 @@ class TaskAccessProxy private (taskAccess:TaskAccess,batchNumber:Long,batchInter
     * 用户自定义事件处理函数
     */
   override def userDefineEventReceive: Receive = {
+    //普通的插入事件
     case cmd @ DatabaseCommand.Insert(taskPo:TaskPo,replyTo,originEvent) =>
       taskAccess.insert(taskPo).mapAll(
         insertedTaskPo => DatabaseEvent.Inserted(Some(insertedTaskPo),originEvent),
         exception => DataAccessProxyException(cmd,exception))
         .pipeTo(replyTo)(sender())
+
     case AutoSpeedActor.BatchMessage(Some(sourceMessage : DatabaseCommand.Insert[TaskPo]),_,commit) if !commit =>
       cmdBuffer = sourceMessage :: cmdBuffer
+
+    //批量处理
     case AutoSpeedActor.BatchMessage(sourceMessage:Option[DatabaseCommand.Insert[TaskPo]],_,commit) if commit =>
       sourceMessage match {
         case Some(msg) =>

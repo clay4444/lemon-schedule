@@ -24,6 +24,7 @@ trait Reply{
 
 /**
   * 需要回复的命令
+  * DatabaseCommand 就实现了这个接口
   */
 trait ReplyCommand extends Command with Reply
 
@@ -42,14 +43,22 @@ object TaskActorCommand{
 object TaskCommand{
   final case class CheckDependency(jobUid:UID, dataTime:Long, replyTo:ActorRef) extends ReplyCommand
 }
+
+//JobTracker 命令消息
 object JobTrackerCommand{
+  //提交Job
   final case class SubmitJob(job:Job,dependency: Array[Dependency],replyTo:ActorRef) extends ReplyCommand
+  //调度Job
   final case class ScheduleJob(job:Job,replyTo:ActorRef) extends ReplyCommand
 }
 
+//JobScheduler 命令消息
 object JobSchedulerCommand{
+  //调度频率
   final case class ScheduleJobFreq(scheduleTime:Long,replyTo:ActorRef) extends ReplyCommand
+  //开始调度
   final case class ScheduleJob(job:Job,replyTo:ActorRef) extends ReplyCommand
+  //停止调度
   final case class StopScheduleJob(job:Job) extends Command
 }
 
