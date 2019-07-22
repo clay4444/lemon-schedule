@@ -43,7 +43,7 @@ class JobSchedulerNode extends ClusterNode{
     dataAccessProxy = context.actorOf(DataAccessProxy.props(databaseIoExecutionContext),"dataAccessProxy")
     context.watch(dataAccessProxy)
 
-    //schedulerActor 
+    //schedulerActor jobTracker发送的开始调度作业的消息就是被它处理的，把数据访问和JobSchedulerNode一起传给这个actor
     schedulerActor = context.actorOf(JobSchedulerActor.props(dataAccessProxy,selfAnchor),"schedulerActor")
 
     context.watch(schedulerActor)
