@@ -15,14 +15,20 @@ import org.quartz.spi.JobStore
 import scala.collection.{immutable, mutable}
 import scala.util.control.Exception._
 
-
+/**
+  * 为下面的扩展指定一个ExtensionId，用来获取它的实例
+  * extends ExtensionId[CountExtensionImpl] with ExtensionIdProvider
+  */
 object QuartzSchedulerExtension extends ExtensionKey[QuartzSchedulerExtension] {
+  //这个 ExtensionKey里帮我们实现了lookup方法(返回this 配置我们的扩展在当前的ActorSystem启动的时候被加载)和createExtension方法(被akka调用的，实例化我们的扩展)
+
+  //为指定的ActorSystem返回我们定义的扩展，
   override def get(system: ActorSystem): QuartzSchedulerExtension = super.get(system)
 }
 
 /**
  * Note that this extension will only be instantiated *once* *per actor system*.
- *
+ * 定义一个具有某些功能的扩展
  */
 class QuartzSchedulerExtension(system: ExtendedActorSystem) extends Extension {
 
