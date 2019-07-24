@@ -31,10 +31,16 @@ object QuartzSchedules {
   // expression = cron expression complying to Quartz' Cron Expression rules.
   // TODO - Misfire Handling
 
-  val catchMissing = catching(classOf[ConfigException.Missing]) //缺少配置异常
+  val catchMissing = catching(classOf[ConfigException.Missing])       //缺少配置异常
   val catchWrongType = catching(classOf[ConfigException.WrongType])  //配置类型错误异常
-  val catchParseErr = catching(classOf[ParseException])   //解析配置异常
+  val catchParseErr = catching(classOf[ParseException])             //解析配置异常
 
+  /**
+    * 返回一个map，key是scheduler的name，value是对应的schedule，也就是说：并不是我想的那样，每个用户的job都由quartz直接调度，而是只有两个scheduler：quartz只调度两个job，
+    * JobTaskDispatcher：  每分钟调度分发器进行任务的分发，
+    * JobScheduler：       每分钟调度器生成任务计划表，
+    * 分发的频率不能比调度的高，也就是说分发要尽量快？
+    */
   def apply(config: Config, defaultTimezone: TimeZone): immutable.Map[String, QuartzSchedule] = catchMissing opt {
     /** The extra toMap call is because the asScala gives us a mutable map... */
     config.getConfig("schedules").root.asScala.toMap.flatMap {
@@ -71,8 +77,8 @@ object QuartzSchedules {
 
   /**
     * 解析 config 获取 scheduler
-    * @param name  名字？ 什么的名字？
-    * @param desc  描述
+    * @param name  名字？ 什么的名字？ scheduler 的名字 / 也可以理解为job的名字
+    * @param desc  描述   scheduler 的描述？
     * @param config 配置
     * @param tz     时区
     * @param calendar  需要排除的节假日
@@ -88,12 +94,13 @@ object QuartzSchedules {
         case Right(expr) => expr
       }
     }
+    //创建真正的scheduler
     new QuartzCronSchedule(name, desc, expression, tz, calendar)
   }
 }
 
 /**
-  * scheduler
+  * scheduler 接口
   */
 sealed trait QuartzSchedule {
   type T <: Trigger
@@ -105,17 +112,18 @@ sealed trait QuartzSchedule {
   // todo - I don't like this as we can't guarantee the builder's state, but the Quartz API forces our hand
   def schedule: ScheduleBuilder[T]
 
-  //The name of the optional exclusion calendar to use.
-  //NOTE: This formerly was "calendars" but that functionality has since been removed as Quartz never supported more
-  //than one calendar anyways.
+  //The name of the optional exclusion calendar to use. 要排除的节假日的名字
+  //NOTE: This formerly was "calendars" but that functionality has since been removed as Quartz never supported more than one calendar anyways.
+  //这个功能被取消了？ 因为quartz 不支持指定多个节假日？
   def calendar: Option[String]
 
   /**
+    * 构建一个trigger，触发器
     * Utility method that builds a trigger with the data this schedule contains, given a name.
     * Job association can happen separately at schedule time.
     *
     * @param name The name of the job / schedule.
-    * @param futureDate The Optional earliest date at which the job may fire.
+    * @param futureDate The Optional earliest date at which the job may fire. 开始执行的日期
     * @return The new trigger instance.
     */
   def buildTrigger(name: String, futureDate: Option[Date] = None): T = {
@@ -136,7 +144,7 @@ sealed trait QuartzSchedule {
 }
 
 /**
-  *
+  * 真正的 CronScheduler
   * @param name
   * @param description
   * @param expression

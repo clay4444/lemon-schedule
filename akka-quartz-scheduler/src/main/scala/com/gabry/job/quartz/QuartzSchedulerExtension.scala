@@ -81,28 +81,40 @@ class QuartzSchedulerExtension(system: ExtendedActorSystem) extends Extension {
    *
    * RECAST KEY AS UPPERCASE TO AVOID RUNTIME LOOKUP ISSUES
    */
+
+  /**
+    * 返回了两个QuartzSchedule，
+    * 一个是 QuartzSchedule 做任务的分发的，
+    * 一个是 JobScheduler   生成任务计划表的，
+    * 并构建好了他们各自的 trigger
+    */
   var schedules: immutable.Map[String, QuartzSchedule] = QuartzSchedules(config, defaultTimezone).map { kv =>
     kv._1.toUpperCase -> kv._2
   }
+
+  /**
+    * runningJobs 中跑的就是上面返回的内个schedules 中的两个QuartzSchedules吗？
+    */
   val runningJobs: mutable.Map[String, JobKey] = mutable.Map.empty[String, JobKey]
 
   log.debug("Configured Schedules: {}", schedules)
 
+  //启动 scheduler (在这启动是什么意思？ 还没有注册trigger把？)
   scheduler.start
 
-  initialiseCalendars()
+  initialiseCalendars()  //暂时跳过
 
   /**
-   * Puts the Scheduler in 'standby' mode, temporarily halting firing of triggers.
-   * Resumable by running 'start'
+   * Puts the Scheduler in 'standby' mode, temporarily halting firing of triggers. 暂时停止触发，
+   * Resumable by running 'start'   可用start恢复
    */
   def standby(): Unit = scheduler.standby()
 
   def isInStandbyMode = scheduler.isInStandbyMode
 
   /**
-    * Starts up the scheduler. This is typically used from userspace only to restart
-    * a scheduler in standby mode.
+    * 启动scheduler，用于用户从 standby 状态启动，如果scheduler当前状态不是start，直接启动并返回true，如果当前状态已经是start了，则返回false
+    * Starts up the scheduler. This is typically used from userspace only to restart a scheduler in standby mode.
     *
     * @return True if calling this function resulted in the starting of the scheduler; false if the scheduler
     *         was already started.
@@ -120,6 +132,7 @@ class QuartzSchedulerExtension(system: ExtendedActorSystem) extends Extension {
 
   /**
    * Returns the next Date a schedule will be fired
+    * 返回一个job的下一次触发时间
    */
   def nextTrigger(name: String): Option[Date] = {
     import scala.collection.JavaConverters._
@@ -131,6 +144,7 @@ class QuartzSchedulerExtension(system: ExtendedActorSystem) extends Extension {
 
   /**
    * Suspends (pauses) all jobs in the scheduler
+    * 暂停所有任务的调度
    */
   def suspendAll(): Unit = {
     log.info("Suspending all Quartz jobs.")
@@ -139,6 +153,7 @@ class QuartzSchedulerExtension(system: ExtendedActorSystem) extends Extension {
 
   /**
     * Shutdown the scheduler manually. The scheduler cannot be re-started.
+    * 手动关闭scheduler，而且这个scheduler不能再次重启；
     *
     * @param waitForJobsToComplete wait for jobs to complete? default to false
     */
@@ -148,6 +163,7 @@ class QuartzSchedulerExtension(system: ExtendedActorSystem) extends Extension {
 
   /**
     * Attempts to suspend (pause) the given job
+    * 暂停一个给定job，
     *
     * @param name The name of the job, as defined in the schedule
     * @return Success or Failure in a Boolean
@@ -167,6 +183,7 @@ class QuartzSchedulerExtension(system: ExtendedActorSystem) extends Extension {
 
   /**
     * Attempts to resume (un-pause) the given job
+    * 恢复一个给定job
     *
     * @param name The name of the job, as defined in the schedule
     * @return Success or Failure in a Boolean
@@ -186,6 +203,7 @@ class QuartzSchedulerExtension(system: ExtendedActorSystem) extends Extension {
 
   /**
    * Unpauses all jobs in the scheduler
+    * 恢复当前scheduler的所有job
    */
   def resumeAll(): Unit = {
     log.info("Resuming all Quartz jobs.")
@@ -194,6 +212,7 @@ class QuartzSchedulerExtension(system: ExtendedActorSystem) extends Extension {
 
   /**
     * Cancels the running job and all associated triggers
+    * 从scheduler中取消job和所有相关的触发器
     *
     * @param name The name of the job, as defined in the schedule
     * @return Success or Failure in a Boolean
@@ -214,11 +233,12 @@ class QuartzSchedulerExtension(system: ExtendedActorSystem) extends Extension {
 
   /**
    * Create a schedule programmatically (must still be scheduled by calling 'schedule')
+    * 用代码的方式创建一个新的schedule（可以直接理解成一个Job）
    *
-   * @param name A String identifying the job
-   * @param description A string describing the purpose of the job
-   * @param cronExpression A string with the cron-type expression
-   * @param calendar An optional calendar to use.
+   * @param name A String identifying the job ：  job的标识符
+   * @param description A string describing the purpose of the job ： job的描述(作用)
+   * @param cronExpression A string with the cron-type expression ：  crontab表达式
+   * @param calendar An optional calendar to use.： 一个可选的日历信息
    *
    */
   def createSchedule(name: String, description: Option[String] = None, cronExpression: String, calendar: Option[String] = None,
@@ -232,26 +252,27 @@ class QuartzSchedulerExtension(system: ExtendedActorSystem) extends Extension {
         case Right(expr) => expr
       }
       val quartzSchedule = new QuartzCronSchedule(name, description, expression, timezone, calendar)
-      schedules += (name.toUpperCase -> quartzSchedule)
+      schedules += (name.toUpperCase -> quartzSchedule)    //仍然加到 schedules 中，里面本身就有两个了，一个做任务分发的，一个做生成执行计划的
   }
 
   /**
     * Reschedule a job
+    * 重新调度一个job
     *
-    * @param name           A String identifying the job
-    * @param receiver       An ActorRef, who will be notified each time the schedule fires
-    * @param msg            A message object, which will be sent to `receiver` each time the schedule fires
-    * @param description    A string describing the purpose of the job
-    * @param cronExpression A string with the cron-type expression
-    * @param calendar       An optional calendar to use.
-    * @return A date which indicates the first time the trigger will fire.
+    * @param name           A String identifying the job： job的标识符
+    * @param receiver       An ActorRef, who will be notified each time the schedule fires ：  每次scheduler(的trigger)触发的时候，这个receiver都会收到通知
+    * @param msg            A message object, which will be sent to `receiver` each time the schedule fires：  每次scheduler触发的时候，发给receiver的通知消息
+    * @param description    A string describing the purpose of the job    job的描述
+    * @param cronExpression A string with the cron-type expression      cron 表达式
+    * @param calendar       An optional calendar to use.                需要排除的节假日
+    * @return A date which indicates the first time the trigger will fire.   返回这个 scheduler(trigger) 第一次触发的日期
     */
 
   def rescheduleJob(name: String, receiver: ActorRef, msg: AnyRef, description: Option[String] = None,
                     cronExpression: String, calendar: Option[String] = None, timezone: TimeZone = defaultTimezone): Date = {
-    cancelJob(name)
-    removeSchedule(name)
-    createSchedule(name, description, cronExpression, calendar, timezone)
+    cancelJob(name)  //取消job
+    removeSchedule(name)  //删除scheduler
+    createSchedule(name, description, cronExpression, calendar, timezone)  //创建新的scheduler
     scheduleInternal(name, receiver, msg, None)
   }
 
@@ -369,6 +390,7 @@ class QuartzSchedulerExtension(system: ExtendedActorSystem) extends Extension {
 
   /**
    * Parses calendar configurations, creates Calendar instances and attaches them to the scheduler
+    * 解析要排除的节假日信息，并注册到scheduler上，[先跳过这个不看了]
    */
   protected def initialiseCalendars() {
     for ((name, calendar) <- QuartzCalendars(config, defaultTimezone)) {
@@ -379,7 +401,9 @@ class QuartzSchedulerExtension(system: ExtendedActorSystem) extends Extension {
   }
 
 
-
+  /**
+    * 创建一个线程池  (quartz 的api)
+    */
   lazy protected val threadPool = {
     // todo - wrap one of the Akka thread pools with the Quartz interface?
     val _tp = new SimpleThreadPool(threadCount, threadPriority)
@@ -388,20 +412,30 @@ class QuartzSchedulerExtension(system: ExtendedActorSystem) extends Extension {
     _tp
   }
 
+  /**
+    * 内存存储？ no
+    */
   lazy protected val jobStore: JobStore = {
     // TODO - Make this potentially configurable,  but for now we don't want persistable jobs.
     new RAMJobStore()
   }
 
+  /**
+    * 真正的scheduler
+    */
   lazy protected val scheduler = {
     // because it's a java API ... initialize the scheduler, THEN get and start it.
+    // schedulerName:  QuartzScheduler~${system.name}
+    // schedulerInstanceId: ${system.name}
+    // threadPool、jobStore
     DirectSchedulerFactory.getInstance.createScheduler(schedulerName, system.name, /* todo - will this clash by quartz' rules? */
       threadPool, jobStore)
 
-    val scheduler = DirectSchedulerFactory.getInstance().getScheduler(schedulerName)
+    val scheduler = DirectSchedulerFactory.getInstance().getScheduler(schedulerName)   // 获取scheduler
 
     log.debug("Initialized a Quartz Scheduler '{}'", scheduler)
 
+    //actor 终止的时候停止调度
     system.registerOnTermination({
       log.info("Shutting down Quartz Scheduler with ActorSystem Termination (Any jobs awaiting completion will end as well, as actors are ending)...")
       scheduler.shutdown(false)
