@@ -45,6 +45,13 @@ object QuartzSchedules {
     }
   } getOrElse immutable.Map.empty[String, QuartzSchedule]
 
+  /**
+    * 解析 config 获取 scheduler
+    * @param name
+    * @param config   配置
+    * @param defaultTimezone  时区
+    * @return
+    */
   def parseSchedule(name: String, config: Config, defaultTimezone: TimeZone): QuartzSchedule = {
     // parse common attributes
     val timezone = catchMissing opt {
@@ -62,6 +69,15 @@ object QuartzSchedules {
     parseCronSchedule(name, desc, config)(timezone, calendar)
   }
 
+  /**
+    * 解析 config 获取 scheduler
+    * @param name  名字？ 什么的名字？
+    * @param desc  描述
+    * @param config 配置
+    * @param tz     时区
+    * @param calendar  需要排除的节假日
+    * @return
+    */
   def parseCronSchedule(name: String, desc: Option[String], config: Config)(tz: TimeZone, calendar: Option[String]): QuartzCronSchedule = {
     val expression = catchMissing or catchWrongType either { config.getString("expression") } match {
       case Left(t) =>
@@ -76,6 +92,9 @@ object QuartzSchedules {
   }
 }
 
+/**
+  * scheduler
+  */
 sealed trait QuartzSchedule {
   type T <: Trigger
 
@@ -116,6 +135,14 @@ sealed trait QuartzSchedule {
 
 }
 
+/**
+  *
+  * @param name
+  * @param description
+  * @param expression
+  * @param timezone
+  * @param calendar
+  */
 final class QuartzCronSchedule(val name: String,
                                val description: Option[String] = None,
                                val expression: CronExpression,
@@ -125,6 +152,7 @@ final class QuartzCronSchedule(val name: String,
   type T = CronTrigger
 
   // Do *NOT* build, we need the uncompleted builder. I hate the Quartz API, truly.
+  //创建一个CronScheduleBuilder,为什么需要一个未完成的builder呢？
   val schedule = CronScheduleBuilder.cronSchedule(expression).inTimeZone(timezone)
 }
 
