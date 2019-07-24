@@ -11,23 +11,29 @@ import scala.collection.immutable
 import scala.util.control.Exception._
 
 /**
- * This is really about triggers - as the "job" is roughly defined in the code that
- *  refers to the trigger.
- *
+ * This is really about triggers - as the "job" is roughly defined in the code that refers to the trigger.
+ * 这是真正关于触发器的程序 - 因为 job 大致在引用触发器的代码中定义。
+  *
  *  I call them Schedules to get people not thinking about Quartz in Quartz terms (mutable jobs, persistent state)
  *
  *  All jobs "start" immediately.
  */
 object QuartzSchedules {
   // timezone (parseable) [optional, defaults to UTC]
+
+  // calendars = 需要排除的日历的名称列表
   // calendars = list of calendar names that "modify" this schedule
+
+  // description = 对于job的一个可选的描述
   // description = an optional description of the job [string] [optional]
+
+  // expression = 符合quartz的规则的cron 表达式
   // expression = cron expression complying to Quartz' Cron Expression rules.
   // TODO - Misfire Handling
 
-  val catchMissing = catching(classOf[ConfigException.Missing])
-  val catchWrongType = catching(classOf[ConfigException.WrongType])
-  val catchParseErr = catching(classOf[ParseException])
+  val catchMissing = catching(classOf[ConfigException.Missing]) //缺少配置异常
+  val catchWrongType = catching(classOf[ConfigException.WrongType])  //配置类型错误异常
+  val catchParseErr = catching(classOf[ParseException])   //解析配置异常
 
   def apply(config: Config, defaultTimezone: TimeZone): immutable.Map[String, QuartzSchedule] = catchMissing opt {
     /** The extra toMap call is because the asScala gives us a mutable map... */

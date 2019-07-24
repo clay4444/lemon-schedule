@@ -36,10 +36,13 @@ class QuartzSchedulerExtension(system: ExtendedActorSystem) extends Extension {
 
 
   // todo - use of the circuit breaker to encapsulate quartz failures?
+  // 考虑使用熔断机制实现quartz的故障？
   def schedulerName = "QuartzScheduler~%s".format(system.name)
 
+  //a withFallback b  :a和b合并，如果有相同的key，以a为准
   protected val config = system.settings.config.withFallback(defaultConfig).getConfig("akka.quartz").root.toConfig
 
+  // 设置必要参数，如果用户没有设置，就取下面的值
   // For config values that can be omitted by user, to setup a fallback
   lazy val defaultConfig =  ConfigFactory.parseString("""
     akka.quartz {
@@ -54,12 +57,18 @@ class QuartzSchedulerExtension(system: ExtendedActorSystem) extends Extension {
 
   // The # of threads in the pool
   val threadCount = config.getInt("threadPool.threadCount")
+
+  //优先级应该在1和10之间
   // Priority of threads created. Defaults at 5, can be between 1 (lowest) and 10 (highest)
   val threadPriority = config.getInt("threadPool.threadPriority")
   require(threadPriority >= 1 && threadPriority <= 10,
     "Quartz Thread Priority (akka.quartz.threadPool.threadPriority) must be a positive integer between 1 (lowest) and 10 (highest).")
+
+  // 如果指定使用非守护线程，可能会使 akka / jvm 停止异常
   // Should the threads we create be daemonic? FYI Non-daemonic threads could make akka / jvm shutdown difficult
   val daemonThreads_? = config.getBoolean("threadPool.daemonThreads")
+
+  // 除非另有说明，否则使用默认时区
   // Timezone to use unless specified otherwise
   val defaultTimezone = TimeZone.getTimeZone(config.getString("defaultTimezone"))
 
@@ -67,6 +76,8 @@ class QuartzSchedulerExtension(system: ExtendedActorSystem) extends Extension {
    * Parses job and trigger configurations, preparing them for any code request of a matching job.
    * In our world, jobs and triggers are essentially 'merged'  - our scheduler is built around triggers
    * and jobs are basically 'idiot' programs who fire off messages.
+    * 解析job和trigger的配置，为匹配作业的任何请求做好准备，在我们的世界中，作业和触发器基本上是“合并的” - 我们的调度程序是围绕触发器构建的，
+    * 并且job基本上是一个只会发送消息的白痴程序
    *
    * RECAST KEY AS UPPERCASE TO AVOID RUNTIME LOOKUP ISSUES
    */
