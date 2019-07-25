@@ -35,14 +35,15 @@ class JobSchedulerActor private (dataAccessProxy: ActorRef,nodeAnchor:String)  e
     */
   private val frequencyInSec = config.getDuration("scheduler.frequency").getSeconds
 
+  //根据 jobtracker 发来的Job的信息创建 数据库Job实体
   private def createJobPo(job:Job,scheduleTime:Long):JobPo =
 
     JobPo(job.uid,job.name,job.className,job.getMetaJsonString(),job.dataTimeOffset,job.dataTimeOffsetUnit
       ,job.startTime,job.cron,job.priority,job.parallel,job.retryTimes
       ,Some(job.workerNodes.mkString(",")),job.cluster,job.group,job.timeOut,job.replaceIfExist
-      ,None ,schedulerNode = Some(nodeAnchor)
-      ,scheduleFrequency = Some(frequencyInSec)
-      ,lastScheduleTime = Some(scheduleTime) )
+      ,None ,schedulerNode = Some(nodeAnchor)       //设置在当前的scheduler节点中调度
+      ,scheduleFrequency = Some(frequencyInSec)     //调度器的调度周期是多少，提前配置好的，多长时间调度一次
+      ,lastScheduleTime = Some(scheduleTime) )      //第一次调度的时间(传过来的时候取的当前时间)
 
   override def preStart(): Unit = {
     super.preStart()
@@ -55,18 +56,32 @@ class JobSchedulerActor private (dataAccessProxy: ActorRef,nodeAnchor:String)  e
     super.postStop()
     scheduler.shutdown() //停止scheduler
   }
+
+  //调度的结束时间就是 开始时间往后延迟一个周期，为什么调度结束时间这样设置？是因为下个调度周期要开始调度了吗？因为下个周期会生成下个周期内的执行计划
   private def getScheduleStopTime(startTime:Long):Long =
     startTime + frequencyInSec * 1000 * 1
 
+  /**
+    * 调度作业(这算是比较核心的了)
+    * 这个while循环内部，会把lastTriggerTime到lastTriggerTime往后延迟一个调度周期内，这段时间应该触发的执行计划，全部保存到数据库
+    * @param scheduleTime     作业的开始执行时间 (也就是被调度的时间)
+    * @param jobPo            作业实体
+    * @param originCommand    command
+    */
   private def scheduleJob(scheduleTime:Long,jobPo: JobPo,originCommand:AnyRef):Unit = {
-    var lastTriggerTime = scheduleTime
-    val stopTime = getScheduleStopTime(scheduleTime)
+    var lastTriggerTime = scheduleTime                //上次触发的时间设置为job的开始时间
+    val stopTime = getScheduleStopTime(scheduleTime)  //结束时间 = 开始时间 + 一个调度周期
     while( lastTriggerTime < stopTime){
+      //计算一个这个job在 lastTriggerTime 时间之后的下一次执行时间
       CronGenerator.getNextTriggerTime(jobPo.cron,lastTriggerTime) match {
         case Some(nextTriggerTime) =>
           log.debug(s"generate nextTriggerTime $nextTriggerTime for ${jobPo.name}")
-          lastTriggerTime = nextTriggerTime
+          lastTriggerTime = nextTriggerTime        //上次触发的时间设置为：下一次应该被触发的时间，用这种方式依次找出在这个调度周期内应该执行的所有执行计划
 
+          /**
+            * 是否被调度这个字段一开始设置为false，nextTriggerTime下次触发时间，succeed是否成功
+            * calcPostOffsetTime: 从下次触发的时间开始，往后偏移(根据偏移量和偏移量单位)，返回偏移后的时间，这是干嘛用的呢？
+            */
           val schedulePo = SchedulePo(UIDGenerator.globalUIDGenerator.nextUID(),jobPo.uid,jobPo.priority,jobPo.retryTimes
             ,dispatched = false,nextTriggerTime,nodeAnchor,scheduleTime,succeed = false,
             Utils.calcPostOffsetTime(nextTriggerTime,jobPo.dataTimeOffset,jobPo.dataTimeOffsetUnit),null)
@@ -83,7 +98,6 @@ class JobSchedulerActor private (dataAccessProxy: ActorRef,nodeAnchor:String)  e
       ,lastScheduleTime = Some(scheduleTime),schedulerNode = Some(nodeAnchor))
 
     dataAccessProxy ! DatabaseCommand.Update(jobPo,newJobPo,self,originCommand)
-
   }
 
 
@@ -115,6 +129,7 @@ class JobSchedulerActor private (dataAccessProxy: ActorRef,nodeAnchor:String)  e
       val scheduleTime = scheduledFireTime.getTime
       log.warning(s"scheduleTime=$scheduleTime")
 
+      //去数据库查需要调度的作业
       dataAccessProxy ! DatabaseCommand.Select((DataTables.JOB,nodeAnchor,scheduleTime,frequencyInSec),self,cmd)
 
     case DatabaseEvent.Selected(Some(jobPo:JobPo),originCommand @ MessageWithFireTime(_,scheduledFireTime)) =>

@@ -72,7 +72,7 @@ private[db] class SlickJobAccess(db:Database) extends SlickDataAccess(db) with J
   /**
     * 选择在一个周期内需要调度的作业
     *
-    * @param scheduleNode      调度器节点
+    * @param scheduleNode      在这个调度器节点
     * @param scheduledFireTime 调度周期的时间
     * @param frequencyInSec    调度器周期，单位是秒
     * @param block             对结果以流的形式处理

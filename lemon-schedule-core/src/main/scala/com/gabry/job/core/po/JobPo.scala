@@ -14,8 +14,8 @@ case class JobPo(uid: UID,    //作业UID值,唯一
                  name: String,  //作业名称，唯一
                  className: String,  //job对应的类名称
                  metaData: String,   // ? 作业执行参数 json
-                 dataTimeOffset: Long,   // ?
-                 dataTimeOffsetUnit: TimeUnit,   // ？
+                 dataTimeOffset: Long,   // ?  偏移量
+                 dataTimeOffsetUnit: TimeUnit,   // ？ 偏移量量的单位
                  startTime: Long,    //作业的开始时间，默认是当前时间
                  cron: String,       //job执行的cron表达式
                  priority: Int,      //作业的优先级，数值越大优先级越低，0是最大优先级。默认是最小优先级
@@ -27,9 +27,9 @@ case class JobPo(uid: UID,    //作业UID值,唯一
                  timeout: Int,        //作业执行时超时时间
                  replaceIfExist: Boolean,   //如果作业已经存在，是否更新原来作业信息
                  lastGenerateTriggerTime: Option[Long],
-                 schedulerNode: Option[String],     // ? 在哪个节点被调度的
-                 scheduleFrequency: Option[Long],   // ? 被调度的频率
-                 lastScheduleTime: Option[Long],    // ? 最后一次被调度的时间
+                 schedulerNode: Option[String],     // 在哪个 scheduler 节点被调度的
+                 scheduleFrequency: Option[Long],   // 调度的周期 (我们手动配置的)
+                 lastScheduleTime: Option[Long],    // 最后一次被调度的时间
                  updateTime: java.sql.Timestamp = null) extends Po{
   override def toString: String = s"JobPo(uid=$uid,name=$name,class=$className,meta=$metaData,dataTimeOffset=$dataTimeOffset,dataTimeOffsetUnit=$dataTimeOffsetUnit," +
     s"startTime=$startTime,cron=$cron,priority=$priority,parallel=$parallel,retryTimes=$retryTimes,workerNodes=${workerNodes.mkString(",")}," +

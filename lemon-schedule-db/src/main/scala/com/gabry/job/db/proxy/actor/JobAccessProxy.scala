@@ -78,7 +78,12 @@ class JobAccessProxy private (jobAccess:JobAccess,batchNumber:Long,batchInterval
         ,exception => DataAccessProxyException(cmd,exception))
         .pipeTo(replyTo)(sender())
 
-    //选择在一个周期内需要调度的作业，nodeAnchor:调度器节点，scheduleTime:调度周期的时间，frequencyInSec:调度器周期
+    /**
+      * 选择在一个周期内需要调度的作业，是 scheduler 这个角色的 Actor 发来的消息
+      * nodeAnchor: 在哪个调度器节点运行，
+      * scheduleTime: JobScheduler(负责生成执行计划的) 这个quartz job 这一次触发的时间 (默认也会一分钟收到一次)
+      * frequencyInSec: 调度器周期(需要我们配置的) 默认是一分钟
+      */
     case DatabaseCommand.Select((DataTables.JOB,nodeAnchor:String,scheduleTime:Long,frequencyInSec:Long),replyTo,originCommand) =>
       jobAccess.selectScheduleJob(nodeAnchor,scheduleTime,frequencyInSec){ jobPo =>
         replyTo ! DatabaseEvent.Selected(Some(jobPo),originCommand)
