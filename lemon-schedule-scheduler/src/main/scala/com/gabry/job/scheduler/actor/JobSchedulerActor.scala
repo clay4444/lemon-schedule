@@ -46,13 +46,14 @@ class JobSchedulerActor private (dataAccessProxy: ActorRef,nodeAnchor:String)  e
 
   override def preStart(): Unit = {
     super.preStart()
-    scheduler.schedule("JobScheduler",self,MessageRequireFireTime(JobSchedulerCommand.ScheduleJobFreq))
+    //这个actor启动的时候直接开始调度(执行)生成执行计划表的scheduler， 执行时返回的消息返回给自己，返回的消息类型是 调度频率的命令？那这个scheduler执行计划干啥了呢？就发个消息就完了？
+    scheduler.schedule("JobScheduler",self,MessageRequireFireTime(JobSchedulerCommand.ScheduleJobFreq))  // 0 返回的就是cmd @ MessageWithFireTime(_,scheduledFireTime) =>
     log.info(s"JobSchedulerActor started at $selfAddress")
   }
 
   override def postStop(): Unit = {
     super.postStop()
-    scheduler.shutdown()
+    scheduler.shutdown() //停止scheduler
   }
   private def getScheduleStopTime(startTime:Long):Long =
     startTime + frequencyInSec * 1000 * 1
@@ -84,6 +85,8 @@ class JobSchedulerActor private (dataAccessProxy: ActorRef,nodeAnchor:String)  e
     dataAccessProxy ! DatabaseCommand.Update(jobPo,newJobPo,self,originCommand)
 
   }
+
+
   override def userDefineEventReceive: Receive = {
     case DatabaseEvent.Inserted(Some(schedulePo:SchedulePo),originEvent)=>
       log.debug(s"Schedule [${schedulePo.uid}] inserted to db for $originEvent")
@@ -101,6 +104,10 @@ class JobSchedulerActor private (dataAccessProxy: ActorRef,nodeAnchor:String)  e
       log.error(exception,exception.getMessage)
       log.error(s"JobPo $oldRow update to $row error ,reason: $exception")
 
+    /**
+      *  1  ** quartz调度 JobScheduler 这个Job后，回复的消息 (每分钟收到一次)
+      *  这个scheduledFireTime就是 JobScheduler 这个job每次执行，都会给当前actor发送一个scheduledFireTime，代表这个job的调度时间
+      */
     case cmd @ MessageWithFireTime(_,scheduledFireTime) =>
       // 首先根据scheduledFireTime计算当前需要调度的起始时间和终止时间。
       // 从jobs获取最后一次调度的时间，计算未执行的作业的个数，和最后一个需要执行的时间，如果个数小于aheadNum或者待执行作业执行时间跨度小于调度周期，则补满
@@ -112,8 +119,10 @@ class JobSchedulerActor private (dataAccessProxy: ActorRef,nodeAnchor:String)  e
 
     case DatabaseEvent.Selected(Some(jobPo:JobPo),originCommand @ MessageWithFireTime(_,scheduledFireTime)) =>
       scheduleJob(scheduledFireTime.getTime,jobPo,originCommand)
+
+
     /**
-      * 收到manager的调度信息，需要与周期性的调度区分开
+      * 收到manager的调度信息（jobTracker发出的，然后由JobTrackerNode转发过来的），需要与周期性的调度区分开
       */
     case originCmd @ JobSchedulerCommand.ScheduleJob(job,replyTo) =>
       // 登记该作业的调度器信息字段到数据库，然后发送消息，给当前节点生成执行计划表

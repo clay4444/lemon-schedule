@@ -71,11 +71,12 @@ class SimpleActorMessageJob extends Job {
    * from one job trigger to another
    * 这些工作基本上都是非常短暂的 - 每次触发时都会创建一个新的Job，并传递一个上下文，其中包含一个JobDataMap，它将可变状态从一个作业触发器转移到另一个作业触发器
     *
+    * 这里job做的工作就是运行的时候给receiver 发了一条消息呗。。。。
    * @throws JobExecutionException
    */
   def execute(context: JobExecutionContext) {
     implicit val dataMap = context.getJobDetail.getJobDataMap
-    val key  = context.getJobDetail.getKey
+    val key  = context.getJobDetail.getKey   //${jobName}_job
 
     try {
       val logBus = as[LoggingBus]("logBus")
@@ -91,16 +92,17 @@ class SimpleActorMessageJob extends Job {
           MessageWithFireTime(m,context.getScheduledFireTime)
         case any:Any => any
       }
-      val log = Logging(logBus, this)
+      val log = Logging(logBus, this)  //所以这个 logBus 就是用来指定日志打到哪里？
       log.debug("Triggering job '{}', sending '{}' to '{}'", key.getName, msg, receiver)
       receiver match {
         case ref: ActorRef => ref ! msg
         case selection: ActorSelection => selection ! msg
-        case eventStream: EventStream => eventStream.publish(msg)
+        case eventStream: EventStream => eventStream.publish(msg)  //发布事件
         case _ => throw new JobExecutionException("receiver as not expected type, must be ActorRef or ActorSelection, was %s".format(receiver.getClass))
       }
     } catch {
       // All exceptions thrown from a job, including Runtime, must be wrapped in a JobExcecutionException or Quartz ignores it
+      //所有job运行的异常，包括运行时异常，都需要封装为 JobExcecutionException，否则quartz会忽略它
       case jee: JobExecutionException => throw jee
       case t: Throwable =>
         throw new JobExecutionException("ERROR executing Job '%s': '%s'".format(key.getName, t.getMessage), t) // todo - control refire?

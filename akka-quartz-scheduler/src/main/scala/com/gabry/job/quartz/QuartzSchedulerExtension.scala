@@ -93,7 +93,7 @@ class QuartzSchedulerExtension(system: ExtendedActorSystem) extends Extension {
   }
 
   /**
-    * runningJobs 中跑的就是上面返回的内个schedules 中的两个QuartzSchedules吗？
+    * runningJobs 中跑的就是上面返回的内个schedules 中的两个QuartzSchedules吗？ 现在看是的
     */
   val runningJobs: mutable.Map[String, JobKey] = mutable.Map.empty[String, JobKey]
 
