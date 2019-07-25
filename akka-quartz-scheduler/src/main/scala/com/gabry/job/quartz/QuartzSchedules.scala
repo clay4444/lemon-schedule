@@ -128,7 +128,7 @@ sealed trait QuartzSchedule {
     */
   def buildTrigger(name: String, futureDate: Option[Date] = None): T = {
     val partialTriggerBuilder = TriggerBuilder.newTrigger()
-                           .withIdentity(name + "_Trigger")
+                           .withIdentity(name + "_Trigger")   // ${jobname}_Trigger   也是 group设置为null
                            .withDescription(description.orNull)
                            .withSchedule(schedule)
                            
@@ -160,7 +160,7 @@ final class QuartzCronSchedule(val name: String,
   type T = CronTrigger
 
   // Do *NOT* build, we need the uncompleted builder. I hate the Quartz API, truly.
-  //创建一个CronScheduleBuilder,为什么需要一个未完成的builder呢？
+  //创建一个CronScheduleBuilder,为什么需要一个未完成的builder呢？ 因为quartz要求的参数是不能build
   val schedule = CronScheduleBuilder.cronSchedule(expression).inTimeZone(timezone)
 }
 

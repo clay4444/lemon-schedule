@@ -19,7 +19,7 @@ sealed trait QuartzJob extends Job {
    * I could just use apply, but I want to have a cleaner 'not there' error.
    *
    * This does not return Option and flatly explodes upon a key being missing.
-   *
+   * 从jobDataMap中找到一个指定类型的数据，没有找的的时候抛出异常，而不是返回Option
    * TODO - NotNothing check?
    **/
   protected def as[T](key: String)(implicit dataMap: JobDataMap): T = Option(dataMap.get(key)) match {
@@ -30,12 +30,16 @@ sealed trait QuartzJob extends Job {
   /**
    * Fetch an item, cast to a specific type, from the JobDataMap.
    * I could just use apply, but I want to have a cleaner 'not there' error.
-   *
+   * 和上面不一样吗？
    * TODO - NotNothing check?
    **/
   protected def getAs[T](key: String)(implicit dataMap: JobDataMap): Option[T] = Option(dataMap.get(key)).map(_.asInstanceOf[T])
 }
 
+
+/**
+  * quartz Job的实现类
+  */
 class SimpleActorMessageJob extends Job {
   val jobType = "SimpleActorMessage"
 
@@ -44,7 +48,7 @@ class SimpleActorMessageJob extends Job {
    * I could just use apply, but I want to have a cleaner 'not there' error.
    *
    * This does not return Option and flatly explodes upon a key being missing.
-   *
+   * 又写一遍？
    * TODO - NotNothing check?
    **/
   protected def as[T](key: String)(implicit dataMap: JobDataMap): T = Option(dataMap.get(key)) match {
@@ -55,7 +59,7 @@ class SimpleActorMessageJob extends Job {
   /**
    * Fetch an item, cast to a specific type, from the JobDataMap.
    * I could just use apply, but I want to have a cleaner 'not there' error.
-   *
+   * ...
    * TODO - NotNothing check?
    **/
   protected def getAs[T](key: String)(implicit dataMap: JobDataMap): Option[T] = Option(dataMap.get(key)).map(_.asInstanceOf[T])
@@ -65,7 +69,8 @@ class SimpleActorMessageJob extends Job {
    * each time we trigger, and passed a context which contains, among
    * other things, a JobDataMap, which transfers mutable state
    * from one job trigger to another
-   *
+   * 这些工作基本上都是非常短暂的 - 每次触发时都会创建一个新的Job，并传递一个上下文，其中包含一个JobDataMap，它将可变状态从一个作业触发器转移到另一个作业触发器
+    *
    * @throws JobExecutionException
    */
   def execute(context: JobExecutionContext) {

@@ -273,14 +273,14 @@ class QuartzSchedulerExtension(system: ExtendedActorSystem) extends Extension {
     cancelJob(name)  //取消job
     removeSchedule(name)  //删除scheduler
     createSchedule(name, description, cronExpression, calendar, timezone)  //创建新的scheduler
-    scheduleInternal(name, receiver, msg, None)
+    scheduleInternal(name, receiver, msg, None)       //重新在内部调度新的scheduler (job)
   }
 
   private def removeSchedule(name: String) = schedules = schedules - name.toUpperCase
 
   /**
     * Schedule a job, whose named configuration must be available
-    *
+    * receiver是一个 ActorRef， 需要立即执行的
     * @param name     A String identifying the job, which must match configuration
     * @param receiver An ActorRef, who will be notified each time the schedule fires
     * @param msg      A message object, which will be sent to `receiver` each time the schedule fires
@@ -291,7 +291,7 @@ class QuartzSchedulerExtension(system: ExtendedActorSystem) extends Extension {
 
   /**
     * Schedule a job, whose named configuration must be available
-    *
+    * receiver是一个 ActorSelection，需要立即执行的
     * @param name     A String identifying the job, which must match configuration
     * @param receiver An ActorSelection, who will be notified each time the schedule fires
     * @param msg      A message object, which will be sent to `receiver` each time the schedule fires
@@ -302,7 +302,7 @@ class QuartzSchedulerExtension(system: ExtendedActorSystem) extends Extension {
 
   /**
     * Schedule a job, whose named configuration must be available
-    *
+    * receiver是一个 EventStream，需要立即执行的
     * @param name     A String identifying the job, which must match configuration
     * @param receiver An EventStream, who will be published to each time the schedule fires
     * @param msg      A message object, which will be published to `receiver` each time the schedule fires
@@ -312,7 +312,7 @@ class QuartzSchedulerExtension(system: ExtendedActorSystem) extends Extension {
 
   /**
     * Schedule a job, whose named configuration must be available
-    *
+    * receiver是一个 ActorRef， 需要设置开始执行时间的，
     * @param name     A String identifying the job, which must match configuration
     * @param receiver An ActorRef, who will be notified each time the schedule fires
     * @param msg      A message object, which will be sent to `receiver` each time the schedule fires
@@ -323,7 +323,7 @@ class QuartzSchedulerExtension(system: ExtendedActorSystem) extends Extension {
 
   /**
     * Schedule a job, whose named configuration must be available
-    *
+    * receiver是一个 ActorSelection，需要设置开始执行时间的，
     * @param name     A String identifying the job, which must match configuration
     * @param receiver An ActorSelection, who will be notified each time the schedule fires
     * @param msg      A message object, which will be sent to `receiver` each time the schedule fires
@@ -333,7 +333,7 @@ class QuartzSchedulerExtension(system: ExtendedActorSystem) extends Extension {
 
   /**
     * Schedule a job, whose named configuration must be available
-    *
+    * receiver是一个 EventStream，需要设置开始执行时间的
     * @param name     A String identifying the job, which must match configuration
     * @param receiver An EventStream, who will be published to each time the schedule fires
     * @param msg      A message object, which will be published to `receiver` each time the schedule fires
@@ -343,11 +343,12 @@ class QuartzSchedulerExtension(system: ExtendedActorSystem) extends Extension {
 
   /**
     * Helper method for schedule because overloaded methods can't have default parameters.
-    * @param name The name of the schedule / job.
-    * @param receiver The receiver of the job message. This must be either an ActorRef or an ActorSelection.
-    * @param msg The message to send to kick off the job.
-    * @param startDate The optional date indicating the earliest time the job may fire.
-    * @return A date which indicates the first time the trigger will fire.
+    * 开始在内部调度，
+    * @param name The name of the schedule / job:               schedule / job 的名字
+    * @param receiver The receiver of the job message. This must be either an ActorRef or an ActorSelection.：   job消息的接受者，必须是一个ActorRef或者ActorSelection
+    * @param msg The message to send to kick off the job.:       每次scheduler(trigger)触发的时候，发送给receiver的消息
+    * @param startDate The optional date indicating the earliest time the job may fire.     第一次触发的时间
+    * @return A date which indicates the first time the trigger will fire.：       第一次触发的时间
     */
   private def scheduleInternal(name: String, receiver: AnyRef, msg: AnyRef, startDate: Option[Date]): Date = schedules.get(name.toUpperCase) match {
     case Some(schedule) => scheduleJob(name, receiver, msg, startDate)(schedule)
@@ -357,13 +358,14 @@ class QuartzSchedulerExtension(system: ExtendedActorSystem) extends Extension {
 
   /**
    * Creates the actual jobs for Quartz, and setups the Trigger, etc.
-   *
-   * @return A date, which indicates the first time the trigger will fire.
+   * 为quartz创建实际的job，并配置trigger等信息，
+    * ---------两个配置的job任务(scheduler)真正被执行的地方-----------
+   * @return A date, which indicates the first time the trigger will fire.:  返回第一次触发的日期
    */
   protected def scheduleJob(name: String, receiver: AnyRef, msg: AnyRef, startDate: Option[Date])(schedule: QuartzSchedule): Date = {
     import scala.collection.JavaConverters._
     log.info("Setting up scheduled job '{}', with '{}'", name, schedule)
-    val jobDataMap = Map[String, AnyRef](
+    val jobDataMap = Map[String, AnyRef](  //创建 jobDataMap
       "logBus" -> system.eventStream,
       "receiver" -> receiver,
       "message" -> msg
@@ -371,20 +373,20 @@ class QuartzSchedulerExtension(system: ExtendedActorSystem) extends Extension {
 
     val jobData = JobDataMapSupport.newJobDataMap(jobDataMap.asJava)
     val job = JobBuilder.newJob(classOf[SimpleActorMessageJob])
-      .withIdentity(name + "_Job")
+      .withIdentity(name + "_Job")   //只指定了一个string，说明group设置的是null
       .usingJobData(jobData)
       .withDescription(schedule.description.orNull)
       .build()
 
     log.debug("Adding jobKey {} to runningJobs map.", job.getKey)
 
-    runningJobs += name -> job.getKey
+    runningJobs += name -> job.getKey  //jobKey ： ${jobname}_Job  ()
 
     log.debug("Building Trigger with startDate '{}", startDate.getOrElse(new Date()))
     val trigger = schedule.buildTrigger(name, startDate)
 
     log.debug("Scheduling Job '{}' and Trigger '{}'. Is Scheduler Running? {}", job, trigger, scheduler.isStarted)
-    scheduler.scheduleJob(job, trigger)
+    scheduler.scheduleJob(job, trigger)  //开始调度
   }
 
 
