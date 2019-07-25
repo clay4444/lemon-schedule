@@ -12,7 +12,7 @@ trait JobAccess extends DataAccess[String,JobPo]{
   /**
     * 选择在一个周期内需要调度的作业
     * @param scheduleNode 调度器节点
-    * @param scheduledFireTime 调度周期的时间
+    * @param scheduledFireTime 调度周期开始的时间
     * @param frequencyInSec 调度器周期，单位是秒
     * @param block 对结果以流的形式处理
     */

@@ -93,7 +93,7 @@ class JobSchedulerActor private (dataAccessProxy: ActorRef,nodeAnchor:String)  e
           lastTriggerTime = stopTime
       }
     }
-    // 更新最后一次生成的作业触发时间
+    // 更新最后一次生成的作业触发时间 和 开始调度的时间 和 scheduler调度节点的具体信息
     val newJobPo = jobPo.copy(lastGenerateTriggerTime = Some(lastTriggerTime)
       ,lastScheduleTime = Some(scheduleTime),schedulerNode = Some(nodeAnchor))
 
@@ -102,8 +102,16 @@ class JobSchedulerActor private (dataAccessProxy: ActorRef,nodeAnchor:String)  e
 
 
   override def userDefineEventReceive: Receive = {
+
+    /**
+      * 在scheduleJob中插入Job成功后返回的消息，如果真的是分钟级别的任务的话，那这个可能会很多，
+      */
     case DatabaseEvent.Inserted(Some(schedulePo:SchedulePo),originEvent)=>
       log.debug(s"Schedule [${schedulePo.uid}] inserted to db for $originEvent")
+
+    /**
+      * 在scheduleJob中插入Job失败后返回的消息，
+      */
     case Status.Failure(DataAccessProxyException(DatabaseCommand.Insert(_:SchedulePo,_,_),exception)) =>
       exception match {
         case _:SQLIntegrityConstraintViolationException =>
@@ -112,6 +120,10 @@ class JobSchedulerActor private (dataAccessProxy: ActorRef,nodeAnchor:String)  e
           log.error(s"unacceptableException:$unacceptableException")
           log.error(unacceptableException,unacceptableException.getMessage)
       }
+
+    /**
+      * 更新最后一次生成的作业的触发时间时，返回的消息： 成功 / 失败
+      */
     case DatabaseEvent.Updated(oldRow:JobPo,row:Option[JobPo],originCommand) =>
       log.debug(s"JobPo $oldRow update to $row for $originCommand")
     case Status.Failure(DataAccessProxyException(DatabaseCommand.Update(oldRow:JobPo,row:JobPo,_,originCommand),exception)) =>
@@ -132,6 +144,9 @@ class JobSchedulerActor private (dataAccessProxy: ActorRef,nodeAnchor:String)  e
       //去数据库查需要调度的作业
       dataAccessProxy ! DatabaseCommand.Select((DataTables.JOB,nodeAnchor,scheduleTime,frequencyInSec),self,cmd)
 
+    /**
+      * 2  查到了这个调度周期需要调度的所有作业，然后就开始调度
+      */
     case DatabaseEvent.Selected(Some(jobPo:JobPo),originCommand @ MessageWithFireTime(_,scheduledFireTime)) =>
       scheduleJob(scheduledFireTime.getTime,jobPo,originCommand)
 
