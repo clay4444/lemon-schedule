@@ -68,15 +68,28 @@ class JobSchedulerActor private (dataAccessProxy: ActorRef,nodeAnchor:String)  e
     * @param jobPo            作业实体
     * @param originCommand    command
     *
-    * 假设作业调度周期为25分钟，开始时间(1:05) 假设调度周期半个小时，则结束时间为 (1:35)，生成的执行计划为：
-    * 1:30、
-    * 1:55、(这个时间片的执行计划也插入了)
-    * 此时 lastTriggerTime 就是 1:55，那么这个Job的 lastTriggerTime 就会更新为1：55 (确实会提前啊)
     *
-    * 例如，此时调度Job的 scheduler 的时间片也到了，假设是 1:10, 此时 lastTriggerTime 就> scheduleFireTime
-    * 此时去数据库查需要调度的job，就又把它查出来了，此时scheduleTime是 1:10，stopTime = 1：40， 又生成两个执行计划
-    * 1:35、
-    * 2:00、(执行计划)
+    * 0/30 * * * * 从0分开始，每半小时执行一次
+    * 假设作业调度周期为30分钟，开始时间(1:00) 假设调度周期为10分钟，则结束时间为 (1:10)，生成的执行计划为：
+    * 1:30 (nextTriggerTime ) 下次应该触发的时间
+    * 此时 lastTriggerTime 就是 1:30，那么这个Job的 lastTriggerTime 就会更新为1：30 (确实会提前啊)
+    *
+    * 过了一分钟，调度Job的 scheduler 的时间片也到了，假设是 1:01, 此时 lastTriggerTime 就> scheduleFireTime，但是(lastTriggerTime-scheduleFireTime)不小于两个调度周期(20分钟)
+    * 这次不会对这个job生成执行计划
+    *
+    * 下次调度 scheduleFireTime = 1:02，也不符合条件
+    * 1:03、1:04、1:05.... 1:10 都不符合条件
+    *
+    * 1:11 开始符合条件，scheduleTime是 1:11，stopTime = 1:21，
+    * 1:30 重复插入了
+    *
+    * 再下一次调度：scheduleTime是 1:12、1:13、1:14....1:29 都重复了啊。。。。
+    *
+    * 再下一次调度：scheduleTime是 1:30，stopTime = 1:40，此时生成执行计划
+    * 2:00
+    *
+    * 接下来重复这个过程，
+    *
     */
   private def scheduleJob(scheduleTime:Long,jobPo: JobPo,originCommand:AnyRef):Unit = {
     var lastTriggerTime = scheduleTime                //上次触发的时间设置为job的开始时间
