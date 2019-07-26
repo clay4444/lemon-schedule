@@ -67,10 +67,20 @@ class JobSchedulerActor private (dataAccessProxy: ActorRef,nodeAnchor:String)  e
     * @param scheduleTime     作业的开始执行时间 (也就是被调度的时间)
     * @param jobPo            作业实体
     * @param originCommand    command
+    *
+    * 假设作业调度周期为25分钟，开始时间(1:05) 假设调度周期半个小时，则结束时间为 (1:35)，生成的执行计划为：
+    * 1:30、
+    * 1:55、(这个时间片的执行计划也插入了)
+    * 此时 lastTriggerTime 就是 1:55，那么这个Job的 lastTriggerTime 就会更新为1：55 (确实会提前啊)
+    *
+    * 例如，此时调度Job的 scheduler 的时间片也到了，假设是 1:10, 此时 lastTriggerTime 就> scheduleFireTime
+    * 此时去数据库查需要调度的job，就又把它查出来了，此时scheduleTime是 1:10，stopTime = 1：40， 又生成两个执行计划
+    * 1:35、
+    * 2:00、(执行计划)
     */
   private def scheduleJob(scheduleTime:Long,jobPo: JobPo,originCommand:AnyRef):Unit = {
     var lastTriggerTime = scheduleTime                //上次触发的时间设置为job的开始时间
-    val stopTime = getScheduleStopTime(scheduleTime)  //结束时间 = 开始时间 + 一个调度周期
+    val stopTime = getScheduleStopTime(scheduleTime)  //结束时间 = 开始时间 + 一个调度周期，
     while( lastTriggerTime < stopTime){
       //计算一个这个job在 lastTriggerTime 时间之后的下一次执行时间
       CronGenerator.getNextTriggerTime(jobPo.cron,lastTriggerTime) match {
