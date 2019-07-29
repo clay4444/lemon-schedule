@@ -46,7 +46,10 @@ class ScheduleAccessProxy(scheduleAccess:ScheduleAccess) extends SimpleActor{
         exception =>DataAccessProxyException(cmd,exception))
         .pipeTo(replyTo)(sender())
 
-    //根据scheduleNode、triggerTime选择待调度的任务，这里有问题吧？最后一个参数定义的是 maxNum：一次调用最多返回的记录数，这里定义的是并行度 ？ @bug
+    /**
+      * 根据scheduleNode、triggerTime选择待调度的任务，这里有问题吧？最后一个参数定义的是 maxNum：一次调用最多返回的记录数，这里定义的是并行度 ？ @bug
+      * 根据 jobUid、nodeAnchor、任务的 triggerTime < triggerTime、未调度的、  这几个条件去选择
+      */
     case DatabaseCommand.Select((DataTables.SCHEDULE,jobUid:UID,nodeAnchor:String,triggerTime:Long,jobParallel:Int),replyTo,originCommand) =>
       scheduleAccess.selectUnDispatchSchedule(jobUid,nodeAnchor,triggerTime,jobParallel){ schedulePo =>
         replyTo ! DatabaseEvent.Selected(Some(schedulePo),originCommand)

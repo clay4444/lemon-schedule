@@ -71,6 +71,10 @@ object JobClientCommand{
   final case object Start extends Command
   final case object Stop extends Command
 }
+
+/**
+  * 任务调度的 命令消息
+  */
 trait TaskDispatcherCommand extends Command
 object TaskDispatcherCommand{
   final case class DispatchJob(job:JobPo,triggerTime:Long) extends TaskDispatcherCommand

@@ -89,7 +89,9 @@ class JobAccessProxy private (jobAccess:JobAccess,batchNumber:Long,batchInterval
         replyTo ! DatabaseEvent.Selected(Some(jobPo),originCommand)
       }
 
-    //寻找对应调度器负责调度的job
+    /**
+      * 寻找对应调度器负责调度的job，循环一个一个发消息，返回的，
+      */
     case DatabaseCommand.Select((DataTables.JOB,nodeAnchor:String),replyTo,originCommand) =>
       jobAccess.selectJobsByScheduleNode(nodeAnchor){ job =>
         replyTo ! DatabaseEvent.Selected(Some(job),originCommand)

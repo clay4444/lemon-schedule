@@ -23,12 +23,12 @@ object JobTaskAggregatorActor{
 class JobTaskAggregatorActor private (dataAccessProxy:ActorRef,nodeAnchor:String) extends SimpleActor {
 
   /**
-    * @param from    哪个taskTrackerNode分配的任务
+    * @param from         哪个taskTrackerNode分配的任务
     * @param jobContext   任务执行上下文
     * @param status       任务执行状态
     * @param eventTime    事件时间
-    * @param message      ?
-    * @param originEvent  原始事件？
+    * @param message      大部分都是None，如果是失败的事件，会返回失败的原因
+    * @param originEvent  原始事件，例如：TaskEvent.Started、TaskEvent.Waiting
     */
   private def insertTaskPo(from:String,jobContext: JobContext,status:TaskStatus,eventTime:Long,message:Option[String],originEvent:Event):Unit = {
     val taskPo = TaskPo(UIDGenerator.globalUIDGenerator.nextUID(),jobContext.job.uid,jobContext.schedule.uid,jobContext.retryId,from,status,eventTime,message)

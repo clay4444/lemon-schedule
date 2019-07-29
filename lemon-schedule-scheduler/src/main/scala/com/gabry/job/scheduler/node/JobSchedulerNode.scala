@@ -47,11 +47,11 @@ class JobSchedulerNode extends ClusterNode{
     schedulerActor = context.actorOf(JobSchedulerActor.props(dataAccessProxy,selfAnchor),"schedulerActor")
     context.watch(schedulerActor)  //death watch
 
-    //任务状态聚合？ 数据访问的actor 也给它了
+    //任务状态聚合？ 数据访问的actor 也给它了， 收到一个任务状态的变化消息，更新到数据库
     aggregatorActor = context.actorOf(JobTaskAggregatorActor.props(dataAccessProxy,selfAnchor),"aggregatorActor")
     context.watch(aggregatorActor)
 
-    //
+    //参数：数据访问actor、当前scheduler节点的值，任务状态聚合actor
     dispatcherActor = context.actorOf(JobTaskDispatcherActor.props(dataAccessProxy,selfAnchor,aggregatorActor),"dispatcherActor")
     context.watch(dispatcherActor)
 

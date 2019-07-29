@@ -46,12 +46,20 @@ object TaskActorEvent{
   final case class Overloaded(jobContext: JobContext) extends Event
 }
 
+/**
+  * JobContext 事件
+  */
 trait JobContextEvent {
   def jobContext:JobContext
 }
+
 object TaskRunnerEvent {
   final case class Stopped(actor:ActorRef) extends Event
 }
+
+/**
+  * Task 事件
+  */
 object TaskEvent{
 
   /**

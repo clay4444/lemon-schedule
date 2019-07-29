@@ -38,6 +38,7 @@ class JobTaskDispatcherActor private (dataAccessProxy: ActorRef,nodeAnchor:Strin
 
     /**
       * 此处也可以用scheduleOnce来实现，但为scheduleOnce无法知道当前的调度周期，即无法度量调度的延迟时间。
+      * 0、   实例化第二个job，开始收到 JobTaskDispatcher(由quartz调度) 每分钟一次的消息
       */
     scheduler.schedule("JobTaskDispatcher",self,MessageRequireFireTime(JobTaskDispatcherCommand.Dispatch))
   }
@@ -71,6 +72,9 @@ class JobTaskDispatcherActor private (dataAccessProxy: ActorRef,nodeAnchor:Strin
       }
       taskTrackerRouter.withRoutees(routees).route(runCommand,self)
 
+    /**
+      * 4、根据job，triggerTime 找到的这个调度周期需要执行的执行计划 ，这个也是通过消息的形式一个一个返回的，
+      */
     case evt @ DatabaseEvent.Selected(Some(schedulePo:SchedulePo),originCommand @ TaskDispatcherCommand.DispatchJob(job,triggerTime)) =>
       log.debug(s"Dispatching schedule $schedulePo for $job at $triggerTime")
 
@@ -80,25 +84,34 @@ class JobTaskDispatcherActor private (dataAccessProxy: ActorRef,nodeAnchor:Strin
       log.error(exception,exception.getMessage)
       log.error(s"Job Schedule failed,can not set dispatch flag for $job,reason: ${exception.getMessage}")
 
+
+    /**
+      * 3、job， triggerTime 表示这次JobTaskDispatcher(quartz消息，分发task用的)，触发的时间
+      */
     case DatabaseEvent.Selected(_:Option[JobPo],originCommand @ TaskDispatcherCommand.DispatchJob(job,triggerTime)) =>
       // 然后选择可调度的task
       log.debug(s"Dispatching Job for $job at $triggerTime")
       dataAccessProxy ! DatabaseCommand.Select((DataTables.SCHEDULE,job.uid,nodeAnchor,triggerTime,job.parallel),self,originCommand)
 
     /**
-      * 定时收到分发消息，从db中获取符合调度时间的任务
+      * 1、  定时收到分发消息，从db中获取符合调度时间的任务
       */
     case cmd @ MessageWithFireTime(_,scheduledFireTime) =>
       val triggerTime = scheduledFireTime.getTime
       log.info(s"TriggerEvent 当前调度时间 ${Utils.formatDate(triggerTime)},$triggerTime")
-      // 先选择该节点负责的Job
+      // 先选择该节点负责的所有Job
       dataAccessProxy ! DatabaseCommand.Select((DataTables.JOB,nodeAnchor),self,cmd)
 //      jobAccess.selectJobsByScheduleNode(nodeAnchor){ job =>
 //        self ! DatabaseEvent.Selected(Some(job),TaskDispatcherCommand.DispatchJob(job,triggerTime))
 //      }
+
+    /**
+      * 2、 找到这个scheduler负责的job(一个一个返回的)，然后给自己发送 DatabaseEvent.Selected 消息
+      */
     case DatabaseEvent.Selected(Some(job:JobPo),MessageWithFireTime(_,scheduledFireTime)) =>
       log.debug(s"Dispatching Job for $job at ${scheduledFireTime.getTime}")
       self ! DatabaseEvent.Selected(Some(job),TaskDispatcherCommand.DispatchJob(job,scheduledFireTime.getTime))
+
 
     case evt @ TaskTrackerEvent.TaskTrackerStarted(taskTracker) =>
       val taskTrackerKey = taskTracker.path.elements.mkString(",")
