@@ -25,10 +25,12 @@ class ScheduleAccessProxy(scheduleAccess:ScheduleAccess) extends SimpleActor{
         exception => DataAccessProxyException(cmd,exception))
         .pipeTo(replyTo)(sender()) //返回消息给这个command的发送方
 
-    //设置已调度
+    /**
+      * 设置为已调度，
+      */
     case cmd @ DatabaseCommand.UpdateField(DataTables.SCHEDULE,scheduleUid:UID,fields @ Array("DISPATCH"),replyTo,originEvent) =>
       scheduleAccess.setDispatched(scheduleUid,dispatched = true).mapAll(
-        updateNum =>DatabaseEvent.FieldUpdated(DataTables.SCHEDULE,fields,updateNum,Some(scheduleUid),originEvent), //跟新schedule表，更新的字段是DISPATCH，更新后影响的行数是updateNum，oid，引起数据库操作的源命令行消息
+        updateNum =>DatabaseEvent.FieldUpdated(DataTables.SCHEDULE,fields,updateNum,Some(scheduleUid),originEvent), //更新schedule表，更新的字段是DISPATCH，更新后影响的行数是updateNum，oid，引起数据库操作的源命令行消息
         exception =>DataAccessProxyException(cmd,exception))
         .pipeTo(replyTo)(sender())
 

@@ -48,6 +48,10 @@ class JobTaskDispatcherActor private (dataAccessProxy: ActorRef,nodeAnchor:Strin
   }
 
   override def userDefineEventReceive: Receive = {
+
+    /**
+      *
+      */
     case DatabaseEvent.FieldUpdated(DataTables.SCHEDULE,Array("DISPATCH"),_:Int,Some(_:UID),DatabaseEvent.Selected(Some(schedulePo:SchedulePo),TaskDispatcherCommand.DispatchJob(job,triggerTime)))=>
       log.debug(s"${schedulePo.uid} dispatched update to true")
       // 从worker中选择符合条件的actor发送执行命令
