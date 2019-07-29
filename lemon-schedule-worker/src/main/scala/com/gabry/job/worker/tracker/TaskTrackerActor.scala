@@ -35,7 +35,7 @@ class TaskTrackerActor(taskTrackerInfo:TaskTrackerInfo) extends SimpleActor{
     taskTrackerInfo.classInfo.foreach{ info =>
       taskClassLoader.load(info.name) match {
         case Success(claz) if classOf[Task].isAssignableFrom(claz) =>
-          // 成功加载后发送StartTaskActor命令
+          // 0、  成功加载后发送StartTaskActor命令，
           self ! TaskTrackerCommand.StartTaskActor(info,claz,self)
         case Success(claz) =>
           log.error(s"class $claz found but not a Task")
@@ -47,17 +47,21 @@ class TaskTrackerActor(taskTrackerInfo:TaskTrackerInfo) extends SimpleActor{
 
   override def postStop(): Unit = {
     super.postStop()
-    taskClassLoader.destroy()
+    taskClassLoader.destroy() //注销类加载器
   }
+
   override def userDefineEventReceive: Receive = {
     case runCmd @ TaskActorCommand.RunTask( jobContext,replyTo ) =>
       context.child(jobContext.job.className).foreach(_ ! runCmd)
 
+    /**
+      * 1、 收到StartTaskActor消息，开始执行Task
+      */
     case TaskTrackerCommand.StartTaskActor(info,claz,replyTo)=>
 
       val taskActorInfo = TaskActorInfo(taskTrackerInfo.cluster,taskTrackerInfo.group,claz,info)
 
-      val taskActor = context.actorOf(Props.create(classOf[TaskActor],taskActorInfo),info.name)
+      val taskActor = context.actorOf(Props.create(classOf[TaskActor],taskActorInfo),info.name)   //构建 TaskActor(对应一个实现了Task的类)
 
       // TaskActor负责某一个类的初始化、执行等操作，启动成功后告诉汇报者TaskActorEvent.Started消息
       replyTo ! TaskActorEvent.Started(taskActor,info)

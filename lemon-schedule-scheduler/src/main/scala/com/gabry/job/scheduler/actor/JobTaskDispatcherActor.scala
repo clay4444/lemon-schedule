@@ -37,7 +37,7 @@ class JobTaskDispatcherActor private (dataAccessProxy: ActorRef,nodeAnchor:Strin
   // 后期需要考虑大面积的作业延迟的情况下，如何平滑的调度任务
   private lazy val scheduler = QuartzSchedulerExtension(context.system)
 
-  //worker 路由？
+  //worker 路由？错，taskTracker路由 (一个taskTracker对应一个jar包)
   private var taskTrackerRouter = Router(RoundRobinRoutingLogic(),Vector.empty[ActorRefRoutee])
 
   override def preStart(): Unit = {
@@ -131,6 +131,9 @@ class JobTaskDispatcherActor private (dataAccessProxy: ActorRef,nodeAnchor:Strin
       self ! DatabaseEvent.Selected(Some(job),TaskDispatcherCommand.DispatchJob(job,scheduledFireTime.getTime))
 
 
+    /**
+      * 处理worker发过来的 TaskTrackerStarted 消息和 TaskTrackerStopped 消息；
+      */
     case evt @ TaskTrackerEvent.TaskTrackerStarted(taskTracker) =>
       val taskTrackerKey = taskTracker.path.elements.mkString(",")
       log.info(s"TaskTracker启动 $taskTracker $taskTrackerKey")

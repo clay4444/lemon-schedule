@@ -69,6 +69,8 @@ class JobSchedulerNode extends ClusterNode{
 
   /**
     * 开始调度和停止调度都交给 schedulerActor 处理，
+    *
+    * 在调度节点上线的时候，worker会监听到这个事件，就会把 worker 下的 taskTracker(对应一个jar包)发到此actor，对应TaskTrackerStarted和TaskTrackerStopped消息；dispatcherActor会处理这两个消息
     * @return
     */
   override def userDefineEventReceive: Receive = {

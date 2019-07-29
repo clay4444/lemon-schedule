@@ -29,21 +29,22 @@ class TaskWorkerNode extends ClusterNode{
 
   override def preStart(): Unit = {
     super.preStart()
-    // 配置文件中的jars配置
+    // 配置文件中的jars配置，这个jar是用户的代码，一个jar包可能包含多个任务(可执行main函数文件)，
     val jars = config.getConfigList("task-tracker.jars").asScala
     jars.foreach{ jar =>
       val classInfo = jar.getConfigList("classInfo").asScala.map{ clasInfo =>
         val parallel = if(clasInfo.getInt("parallel")<1) Int.MaxValue else clasInfo.getInt("parallel")
-        TaskClassInfo(clasInfo.getString("name"),parallel,clasInfo.getDuration("time-out").getSeconds)
-      }.toArray
+        TaskClassInfo(clasInfo.getString("name"),parallel,clasInfo.getDuration("time-out").getSeconds)    //taskInfo(name、parallel、timeout)
+      }.toArray  //一个jar包 包含多个 TaskClassInfo，一个TaskClassInfo可以理解为对应一个任务，
 
+      //一个jar包对应一个TaskTrackerInfo，一个TaskTrackerInfo对应多个 TaskClassInfo，
       val taskTrackerInfo = TaskTrackerInfo(clusterName
         ,jar.getString("group-name")
         ,jar.getString("path")
         ,classInfo)
       log.info(s"taskTrackerInfo is $taskTrackerInfo")
-      // 根据jar包中每个class的配置，发送StartTaskTracker启动TaskTracker
-      self ! TaskWorkerCommand.StartTaskTracker(taskTrackerInfo,self)
+      // 0、  根据jar包中每个class的配置，发送StartTaskTracker启动TaskTracker
+      self ! TaskWorkerCommand.StartTaskTracker(taskTrackerInfo,self)   //发给自己消息
     }
   }
 
@@ -52,9 +53,12 @@ class TaskWorkerNode extends ClusterNode{
 
   }
   override def userDefineEventReceive: Receive = {
+
+    //1、 收到preStart生命周期中开始启动任务的消息
     case TaskWorkerCommand.StartTaskTracker(taskTrackerInfo,replyTo) =>
 
-      val taskTracker = context.actorOf(Props.create(classOf[TaskTrackerActor],taskTrackerInfo)
+      //也就是说每个jar包都会创建一个TaskTrackerActor呗。。每个TaskTrackerActor内部创建自己的类加载器
+      val taskTracker = context.actorOf(Props.create(classOf[TaskTrackerActor],taskTrackerInfo)  //创建taskTracker Actor
         ,taskTrackerInfo.group)
 
       context.watchWith(taskTracker,TaskTrackerEvent.TaskTrackerStopped(taskTracker))
@@ -72,9 +76,13 @@ class TaskWorkerNode extends ClusterNode{
         .foreach( _ ! evt )
   }
 
+  /**
+    * 节点加入集群，MemberUp事件发生时，回调此方法，
+    * 给scheduler发消息，将worker下面的TaskTracker汇报给它，
+    */
   override def register(member: Member): Unit = {
     log.info(s"member register $member")
-    if(member.hasRole(Constants.ROLE_SCHEDULER_NAME)){
+    if(member.hasRole(Constants.ROLE_SCHEDULER_NAME)){  //JobScheduler
       // 有调度节点加入的时候，将该worker下面的TaskTracker汇报给它
       log.info(s"scheduler node address = ${RootActorPath(member.address)/ "user" / Constants.ROLE_SCHEDULER_NAME}")
       val scheduler = context.actorSelection(RootActorPath(member.address)/ "user" / Constants.ROLE_SCHEDULER_NAME)
