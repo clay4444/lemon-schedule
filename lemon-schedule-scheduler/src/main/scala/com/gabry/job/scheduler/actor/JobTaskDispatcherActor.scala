@@ -21,6 +21,13 @@ object JobTaskDispatcherActor{
   def props(dataAccessProxy: ActorRef,nodeAnchor:String,aggregatorActor:ActorRef):Props =
     Props(new JobTaskDispatcherActor(dataAccessProxy,nodeAnchor,aggregatorActor))
 }
+
+/**
+  * 做Task(执行计划)分发，
+  * @param dataAccessProxy  数据访问Actor
+  * @param nodeAnchor       jobSchedulerNode 集群角色的节点值
+  * @param aggregatorActor  任务状态聚合Actor
+  */
 class JobTaskDispatcherActor private (dataAccessProxy: ActorRef,nodeAnchor:String,aggregatorActor:ActorRef) extends SimpleActor{
 
   // TODO: 所以每次只从数据库查询出当前节点需要执行的任务，考虑到该数量仍然可能会很多，需要实现翻页的机制，一期先不做
@@ -30,6 +37,7 @@ class JobTaskDispatcherActor private (dataAccessProxy: ActorRef,nodeAnchor:Strin
   // 后期需要考虑大面积的作业延迟的情况下，如何平滑的调度任务
   private lazy val scheduler = QuartzSchedulerExtension(context.system)
 
+  //worker 路由？
   private var taskTrackerRouter = Router(RoundRobinRoutingLogic(),Vector.empty[ActorRefRoutee])
 
   override def preStart(): Unit = {
@@ -50,40 +58,46 @@ class JobTaskDispatcherActor private (dataAccessProxy: ActorRef,nodeAnchor:Strin
   override def userDefineEventReceive: Receive = {
 
     /**
-      *
+      * 5.1、 更新执行计划为已调度之后，开始给 worker 分发任务
       */
     case DatabaseEvent.FieldUpdated(DataTables.SCHEDULE,Array("DISPATCH"),_:Int,Some(_:UID),DatabaseEvent.Selected(Some(schedulePo:SchedulePo),TaskDispatcherCommand.DispatchJob(job,triggerTime)))=>
       log.debug(s"${schedulePo.uid} dispatched update to true")
       // 从worker中选择符合条件的actor发送执行命令
       // 选择条件有：节点即IP地址，分组，className
-      // 此处需要计算当前任务的数据时间
+      // 此处需要计算当前任务的数据时间、
+
+      //以triggerTime为基准，偏移Job指定的偏移量，做什么的？
       val jobContext = JobContext(job,schedulePo,Utils.calcPostOffsetTime(triggerTime,job.dataTimeOffset,job.dataTimeOffsetUnit))
-      val runCommand = TaskActorCommand.RunTask(jobContext,aggregatorActor)
+      val runCommand = TaskActorCommand.RunTask(jobContext,aggregatorActor)  //jobContext, replyTo
       val routees = taskTrackerRouter.routees.filter{
         case ActorRefRoutee( actorRef ) =>
-          val cluster = actorRef.path.address.system
-          val host = actorRef.path.address.host.getOrElse("localhost")
-          val group = actorRef.path.name
+          val cluster = actorRef.path.address.system   //集群名称，
+          val host = actorRef.path.address.host.getOrElse("localhost")  //host 域名
+          val group = actorRef.path.name              //分组对应worker的 path name ?
           val ipMatch = job.workerNodes match {
             case Some(workers) if workers != "" =>
-              workers.split(",").contains(host)
+              workers.split(",").contains(host) //找指定host的机器
             case Some(_) => true
             case None => true
           }
-          cluster == job.cluster && group == job.group && ipMatch
+          cluster == job.cluster && group == job.group && ipMatch //都匹配，说明可以往这个节点发任务，
         case _ =>
           true
       }
-      taskTrackerRouter.withRoutees(routees).route(runCommand,self)
+      taskTrackerRouter.withRoutees(routees).route(runCommand,self) //设置发送方为自己，
 
     /**
       * 4、根据job，triggerTime 找到的这个调度周期需要执行的执行计划 ，这个也是通过消息的形式一个一个返回的，
+      * triggerTime 就是 scheduledFireTime
       */
     case evt @ DatabaseEvent.Selected(Some(schedulePo:SchedulePo),originCommand @ TaskDispatcherCommand.DispatchJob(job,triggerTime)) =>
       log.debug(s"Dispatching schedule $schedulePo for $job at $triggerTime")
 
       dataAccessProxy ! DatabaseCommand.UpdateField(DataTables.SCHEDULE,schedulePo.uid,Array("DISPATCH"),self,evt)
 
+    /**
+      * 5.2、  修改为已调度失败，
+      */
     case Status.Failure(DataAccessProxyException(DatabaseCommand.UpdateField(DataTables.SCHEDULE,_:UID,Array("DISPATCH"),_,DatabaseEvent.Selected(Some(_:SchedulePo),TaskDispatcherCommand.DispatchJob(job,_))),exception))=>
       log.error(exception,exception.getMessage)
       log.error(s"Job Schedule failed,can not set dispatch flag for $job,reason: ${exception.getMessage}")

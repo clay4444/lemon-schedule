@@ -16,6 +16,8 @@ import scala.util.parsing.json.JSONObject
   * @param name 作业名称，唯一
   * @param className job对应的类名称
   * @param cron job执行的cron表达式
+  * @param dataTimeOffset     ????  时间偏移量
+  * @param dataTimeOffsetUnit  时间偏移量单位
   * @param parallel job的并发度。即同时执行的个数
   * @param meta job的额外参数
   * @param workerNodes job可以执行的节点范围，如果不指定，则随机选择节点

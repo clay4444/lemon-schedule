@@ -36,6 +36,9 @@ object TaskTrackerCommand{
   final case class StartTaskActor(taskClassInfo:TaskClassInfo,claz:Class[_], replyTo:ActorRef) extends ReplyCommand
 }
 
+/**
+  * TaskActor 命令消息
+  */
 object TaskActorCommand{
   final case class RunTask(jobContext: JobContext,replyTo:ActorRef) extends ReplyCommand
   //final case class CancelTask(replyTo:ActorRef)extends ReplyCommand
