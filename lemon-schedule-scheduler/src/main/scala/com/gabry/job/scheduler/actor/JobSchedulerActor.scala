@@ -42,7 +42,7 @@ class JobSchedulerActor private (dataAccessProxy: ActorRef,nodeAnchor:String)  e
       ,job.startTime,job.cron,job.priority,job.parallel,job.retryTimes
       ,Some(job.workerNodes.mkString(",")),job.cluster,job.group,job.timeOut,job.replaceIfExist
       ,None ,schedulerNode = Some(nodeAnchor)       //设置在当前的scheduler节点中调度
-      ,scheduleFrequency = Some(frequencyInSec)     //调度器的调度周期是多少，提前配置好的，多长时间调度一次
+      ,scheduleFrequency = Some(frequencyInSec)     //调度器的调度周期是多少，提前配置好的，意思是提前生成多长时间的调度计划，例如作业的频率是一个小时，调度周期是天，则每次都会生成未来一天(24个) 作业
       ,lastScheduleTime = Some(scheduleTime) )      //第一次调度的时间(传过来的时候取的当前时间)
 
   override def preStart(): Unit = {
@@ -70,7 +70,7 @@ class JobSchedulerActor private (dataAccessProxy: ActorRef,nodeAnchor:String)  e
     *
     *
     * 0/30 * * * * 从0分开始，每半小时执行一次
-    * 假设作业调度周期为30分钟，开始时间(1:00) 假设调度周期为10分钟，则结束时间为 (1:10)，生成的执行计划为：
+    * 假设作业执行频率为30分钟，开始时间(1:00) 假设调度周期为10分钟，则结束时间为 (1:10)，生成的执行计划为：
     * 1:30 (nextTriggerTime ) 下次应该触发的时间
     * 此时 lastTriggerTime 就是 1:30，那么这个Job的 lastTriggerTime 就会更新为1：30 (确实会提前啊)
     *

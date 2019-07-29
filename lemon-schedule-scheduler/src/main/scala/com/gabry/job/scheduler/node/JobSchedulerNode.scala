@@ -45,13 +45,14 @@ class JobSchedulerNode extends ClusterNode{
 
     //schedulerActor jobTracker发送的开始调度作业的消息就是被它处理的(停止调度也是被它处理的)，把数据访问和JobSchedulerNode一起传给这个actor
     schedulerActor = context.actorOf(JobSchedulerActor.props(dataAccessProxy,selfAnchor),"schedulerActor")
+    context.watch(schedulerActor)  //death watch
 
-    context.watch(schedulerActor)
+    //任务状态聚合？ 数据访问的actor 也给它了
     aggregatorActor = context.actorOf(JobTaskAggregatorActor.props(dataAccessProxy,selfAnchor),"aggregatorActor")
-
     context.watch(aggregatorActor)
-    dispatcherActor = context.actorOf(JobTaskDispatcherActor.props(dataAccessProxy,selfAnchor,aggregatorActor),"dispatcherActor")
 
+    //
+    dispatcherActor = context.actorOf(JobTaskDispatcherActor.props(dataAccessProxy,selfAnchor,aggregatorActor),"dispatcherActor")
     context.watch(dispatcherActor)
 
   }
