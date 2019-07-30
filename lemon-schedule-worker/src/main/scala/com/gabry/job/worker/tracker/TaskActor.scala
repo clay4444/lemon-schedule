@@ -28,7 +28,7 @@ class TaskActor(taskActorInfo:TaskActorInfo) extends SimpleActor{
     */
   private var executingTaskNum = 0
   /**
-    * Task实例
+    * Task实例，通过反射获取
     */
   private val task = taskActorInfo.claz.newInstance().asInstanceOf[Task]
 

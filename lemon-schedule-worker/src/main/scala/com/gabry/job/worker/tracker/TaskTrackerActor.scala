@@ -51,24 +51,37 @@ class TaskTrackerActor(taskTrackerInfo:TaskTrackerInfo) extends SimpleActor{
   }
 
   override def userDefineEventReceive: Receive = {
+
+    /**
+      * 这个应该是scheduler集群角色发给它的，它负责找到对应的 TaskActor，然后给TaskActor发消息，开始run任务，
+      */
     case runCmd @ TaskActorCommand.RunTask( jobContext,replyTo ) =>
       context.child(jobContext.job.className).foreach(_ ! runCmd)
 
     /**
-      * 1、 收到StartTaskActor消息，开始执行Task
+      * 1、 收到StartTaskActor消息，开始执行Task，
       */
-    case TaskTrackerCommand.StartTaskActor(info,claz,replyTo)=>
+    case TaskTrackerCommand.StartTaskActor(info,claz,replyTo)=>   //info是classInfo，类信息
 
-      val taskActorInfo = TaskActorInfo(taskTrackerInfo.cluster,taskTrackerInfo.group,claz,info)
+      val taskActorInfo = TaskActorInfo(taskTrackerInfo.cluster,taskTrackerInfo.group,claz,info)  //最后的info是 classInfo，类信息
 
       val taskActor = context.actorOf(Props.create(classOf[TaskActor],taskActorInfo),info.name)   //构建 TaskActor(对应一个实现了Task的类)
 
-      // TaskActor负责某一个类的初始化、执行等操作，启动成功后告诉汇报者TaskActorEvent.Started消息
+      // TaskActor负责某一个类的初始化、执行等操作，启动成功后告诉汇报者 TaskActorEvent.Started 消息
       replyTo ! TaskActorEvent.Started(taskActor,info)
+
+      // 设置 TaskActor 如果死了，收到一个 TaskActor Stop 消息
       context.watchWith(taskActor,TaskActorEvent.Stopped(taskActor))
 
+    /**
+      * 2.1、 收到 TaskActor 开始执行的 Started 消息
+      */
     case evt @ TaskActorEvent.Started(taskActor,taskClassInfo)=>
       log.info(s"task actor [$taskActor] start at ${evt.at},classInfo is $taskClassInfo")
+
+    /**
+      * 2.2、 收到 TaskActor 停止执行的 Stop 消息
+      */
     case evt @ TaskActorEvent.Stopped(taskActor) =>
       val stopAt = System.currentTimeMillis()
       log.warning(s"task actor [$taskActor] alive time is ${Utils.formatAliveTime(evt.at,stopAt)}")
