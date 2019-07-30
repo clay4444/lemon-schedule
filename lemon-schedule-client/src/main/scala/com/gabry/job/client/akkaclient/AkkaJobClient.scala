@@ -19,14 +19,19 @@ import scala.util.{Failure, Success}
   * 默认客户端
   */
 class AkkaJobClient(config:Config) extends AbstractJobClient(config) {
-  private var started = false
-  private val clusterName:String = config.getString("clusterNode.cluster-name")
+
+  private var started = false  //是否启动
+  private val clusterName:String = config.getString("clusterNode.cluster-name")  //clusterName
+
   private var system:ActorSystem = _
-  private var clientActor:ActorRef = _
-  private var registry:Registry = _
+  private var clientActor:ActorRef = _     //背后的Client Actor
+  private var registry:Registry = _        //注册中心
+
   private val timeOutMs = config.getDuration("client.time-out").getSeconds
-  private implicit val timeout: Timeout = Timeout(timeOutMs,TimeUnit.SECONDS)
-  private implicit lazy val executionContext: ExecutionContextExecutor = system.dispatcher
+  private implicit val timeout: Timeout = Timeout(timeOutMs,TimeUnit.SECONDS)                //客户端提交Job的超时时间
+  private implicit lazy val executionContext: ExecutionContextExecutor = system.dispatcher   //线程池，因为这里用的ask，这两个都是Future的隐式参数；
+
+  //初始化注册中心；
   private def initRegistry():Unit = {
     registry = RegistryFactory.getRegistry(config).get
     registry.connect()
@@ -37,10 +42,10 @@ class AkkaJobClient(config:Config) extends AbstractJobClient(config) {
   override def start(): Unit = {
     if(!started){
       try{
-        initRegistry()
-        system = ActorSystem(clusterName, config)
-        clientActor = system.actorOf(Props.create(classOf[ClientActor],registry),"JobClient")
-        clientActor ! JobClientCommand.Start
+        initRegistry()  //初始化注册中心，
+        system = ActorSystem(clusterName, config)  //创建ActorSystem
+        clientActor = system.actorOf(Props.create(classOf[ClientActor],registry),"JobClient")  //创建 Client 子Actor，名字为JobClient
+        clientActor ! JobClientCommand.Start       //发送启动JobClient的消息
         started = true
       }catch {
         case ex:Exception =>
@@ -74,10 +79,10 @@ class AkkaJobClient(config:Config) extends AbstractJobClient(config) {
     */
   override def stop(): Unit = {
     if(started){
-      registry.disConnect()
+      registry.disConnect()  //断开注册中心连接
       clientActor ! JobClientCommand.Stop
-      system.stop(clientActor)
-      system.terminate()
+      system.stop(clientActor) //杀死背后的ClientActor
+      system.terminate()     //停止ActorSystem
       started = false
     }
   }
@@ -90,8 +95,7 @@ class AkkaJobClient(config:Config) extends AbstractJobClient(config) {
   override def isStarted: Boolean = started
 
   /**
-    * 取消作业执行
-    *
+    * 取消作业执行 也是由Manager进行操作，然后返回；
     * @param jobId 待取消的作业ID
     */
   override def cancelJob(jobId: Long,force:Boolean): Unit = {

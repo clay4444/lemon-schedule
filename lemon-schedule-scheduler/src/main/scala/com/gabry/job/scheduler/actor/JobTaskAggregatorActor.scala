@@ -39,6 +39,7 @@ class JobTaskAggregatorActor private (dataAccessProxy:ActorRef,nodeAnchor:String
     case evt @ TaskEvent.Started(taskRunner,jobContext) =>
       insertTaskPo(taskRunner.toString(),jobContext,TaskStatus.Started,evt.at,None,evt)
 
+    //设置任务状态为waiting
     case evt @ TaskEvent.Waiting(jobContext) =>
       val from = sender().toString()
       insertTaskPo(from,jobContext,TaskStatus.Waiting,evt.at,None,evt)
@@ -78,14 +79,19 @@ class JobTaskAggregatorActor private (dataAccessProxy:ActorRef,nodeAnchor:String
       //scheduleAccess.setDispatched(jobContext.schedule.id,dispatched = false)
 
     /**
-      * 检查是否有不成功的依赖，TaskRunner
+      * 检查是否有不成功的依赖，TaskRunnerActor 发过来的消息
       */
     case cmd @ TaskCommand.CheckDependency(jobId,dataTime,replyTo) =>
       // 选择是否有不成功的依赖
       dataAccessProxy ! DatabaseCommand.Select((DataTables.DEPENDENCY,jobId,dataTime),self,cmd)
 
+    /**
+      * 返回查询的依赖情况；
+      */
     case DatabaseEvent.Selected(Some((DataTables.DEPENDENCY,state:Boolean)),TaskCommand.CheckDependency(_,_,replyTo)) =>
       replyTo ! TaskEvent.DependencyState(state)
+
+    //查询失败的时候，也返回查询依赖失败；
     case Status.Failure(
     DataAccessProxyException(DatabaseCommand.Select((DataTables.DEPENDENCY,_:Long,_:Long),_,TaskCommand.CheckDependency(_,_,replyTo)),exception)) =>
       log.error(exception,exception.getMessage)

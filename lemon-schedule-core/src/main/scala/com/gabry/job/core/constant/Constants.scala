@@ -6,7 +6,7 @@ package com.gabry.job.core.constant
   */
 object Constants {
   val ROLE_SCHEDULER_NAME = "JobScheduler"
-  val ROLE_MANAGER_NAME = "JobTracker"
+  val ROLE_MANAGER_NAME = "JobTracker"   //manager
   val ROLE_WORKER_NAME = "TaskWorker"
   val ROLE_SEED_NAME = "seed"
   val DEFAULT_CLUSTER_NAME = "defaultCluster"

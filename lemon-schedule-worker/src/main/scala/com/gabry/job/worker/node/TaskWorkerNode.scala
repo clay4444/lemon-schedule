@@ -73,6 +73,7 @@ class TaskWorkerNode extends ClusterNode{
 
     /**
       * 2.2、 TaskTracker启动失败
+      * 通知调度器，有TaskTracker退出，调度器收到 TaskTracker 退出的消息，会直接从它的 worker routee中删除这个worker
       */
     case evt @ TaskTrackerEvent.TaskTrackerStopped(taskTracker) =>
       val stopAt = System.currentTimeMillis()

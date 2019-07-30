@@ -64,7 +64,7 @@ class TaskActor(taskActorInfo:TaskActorInfo) extends SimpleActor{
       * 0、  这个RunTask命令应该是scheduler节点发过来的，也就是一个调度命令
       * 这个命令是由scheduler节点发出的，先发给TaskTracker，然后转发给TaskActor
       */
-    case runCmd @ TaskActorCommand.RunTask( jobContext,replyTo ) =>
+    case runCmd @ TaskActorCommand.RunTask( jobContext,replyTo ) =>     //注意这里的replyTo指的是聚合任务状态的 actor
       log.info(s"收到了runCmd命令 $runCmd")
       // 收到调度命令后，判断当前并发度是否满足条件，满足后创建TaskRunner执行具体的业务逻辑
       if( executingTaskNum <= taskActorInfo.classInfo.parallel ){
@@ -122,12 +122,14 @@ class TaskRunnerActor(taskRunnerInfo:TaskRunnerInfo) extends SimpleActor{
 
   override def userDefineEventReceive: Receive = {
 
+    //3、 任务聚合actor返回的依赖状态
     case evt @ TaskEvent.DependencyState(passed) =>
       dependencyPassed = passed
+      //当前时间 - 这个job的触发时间 > 这个Job设置的超时时间；就不再继续运行了，直接修改状态为Timeout
       if( evt.at - runCmd.jobContext.schedule.triggerTime > taskRunnerInfo.classInfo.defaultTimeOut.min(runCmd.jobContext.job.timeOut)*1000 ){
         self ! ReceiveTimeout
       }else{
-        self ! runCmd
+        self ! runCmd  //给自己发送RunTask消息，继续运行；
       }
     /**
       * 1、   收到运行作业的命令
@@ -148,32 +150,34 @@ class TaskRunnerActor(taskRunnerInfo:TaskRunnerInfo) extends SimpleActor{
         // 放到future执行，也就是放到另外一个单独线程异步执行
         // 执行结束需要发消息给self
         Future{
-          runCmd.replyTo ! TaskEvent.Executing(runCmd.jobContext)
+          runCmd.replyTo ! TaskEvent.Executing(runCmd.jobContext) //修改任务为执行中
           interruptableTask.run()
         }.onComplete{
-          case Success(runResult) =>
+          case Success(runResult) =>  //执行完成
             log.debug(s"interruptableTask执行结果$runResult")
             interruptableTask.get() match {
-              case Success(taskReturn) =>
+              case Success(taskReturn) =>   //完成且成功
                 log.debug(s"作业执行成功 result = $taskReturn,get = ${interruptableTask.get()}")
                 self ! TaskEvent.Succeed(runCmd.jobContext)
-              case Failure(taskException)=>
+              case Failure(taskException)=>   //完成但失败
                 log.warning(s"作业执行出现异常 $taskException")
                 self ! TaskEvent.Failed(taskException.getMessage,runCmd.jobContext)
             }
-          case Failure(runException) =>
+          case Failure(runException) =>  //直接失败
             log.warning(s"作业执行失败:${runException.getMessage}")
             self ! TaskEvent.Failed(runException.getMessage,runCmd.jobContext)
         }
       }else{
-        if(!sendWaiting){  //这个sendWaiting存在的意义就是在任务刚开始运行的时候设置为 watting ？
+        if(!sendWaiting){  //这个sendWaiting存在的意义就是在任务刚开始运行的时候设置为 waiting ？
           runCmd.replyTo ! TaskEvent.Waiting(runCmd.jobContext)
           sendWaiting = true
         }
         // 此处休眠3秒，在发送运行作业的命令，防止死循环
         // 因为RunTask和DependencyState命令会循环触发
         Thread.sleep(checkDependencySleepTime)
-        runCmd.replyTo ! TaskCommand.CheckDependency(runCmd.jobContext.job.uid,runCmd.jobContext.dataTime,self)
+
+        //2、  休眠之后继续查询依赖任务状态
+        runCmd.replyTo ! TaskCommand.CheckDependency(runCmd.jobContext.job.uid,runCmd.jobContext.dataTime,self)  //runCmd.replyTo 指的是聚合任务状态的 actor
       }
 
 
@@ -195,16 +199,16 @@ class TaskRunnerActor(taskRunnerInfo:TaskRunnerInfo) extends SimpleActor{
       * 作业执行超时，杀掉作业并重新运行，如果重试失败则退出
       */
     case timeout:ReceiveTimeout =>
-      val interrupt = interruptableTask.interrupt()
+      val interrupt = interruptableTask.interrupt()  //中断作业
       log.info(s"作业执行超时 $timeout，中断作业 $interrupt")
-      runCmd.replyTo ! TaskEvent.Timeout(runCmd.jobContext)
+      runCmd.replyTo ! TaskEvent.Timeout(runCmd.jobContext)  //修改数据库Task状态为Timeout（但未停止）
       context.setReceiveTimeout(Duration.Undefined)
       if(canReRun()){
-        self ! runCmd.copy(jobContext = runCmd.jobContext.copy(retryId = runCmd.jobContext.retryId + 1 ))
+        self ! runCmd.copy(jobContext = runCmd.jobContext.copy(retryId = runCmd.jobContext.retryId + 1 ))  //发送自己一个RunTask消息，然后继续运行；
       }else{
         // 如果reRun失败则退出此次调用
-        runCmd.replyTo ! TaskEvent.TimeOutStopped(runCmd.jobContext)
-        context.stop(self)
+        runCmd.replyTo ! TaskEvent.TimeOutStopped(runCmd.jobContext) //超时停止；
+        context.stop(self)  //停止Actor
       }
 
     /**
@@ -213,7 +217,7 @@ class TaskRunnerActor(taskRunnerInfo:TaskRunnerInfo) extends SimpleActor{
     case evt @ TaskEvent.Succeed(jobContext) =>
       // 作业执行成功后，将成功消息发送给汇报者
       // 注意，此处不能是原来的jobContext，因为task执行时可能会修改jobContext
-      runCmd.replyTo ! evt
+      runCmd.replyTo ! evt  //修改mysql任务状态为成功
       log.info(s"$jobContext 执行成功，现在退出")
       context.stop(self)
 
@@ -223,12 +227,12 @@ class TaskRunnerActor(taskRunnerInfo:TaskRunnerInfo) extends SimpleActor{
     case evt :TaskEvent.Failed =>
       log.info(s"$evt 执行失败")
       context.setReceiveTimeout(Duration.Undefined)
-      runCmd.replyTo ! evt
+      runCmd.replyTo ! evt    //修改mysql任务状态为失败
       if(canReRun()){
-        self ! runCmd.copy(jobContext = runCmd.jobContext.copy(retryId = runCmd.jobContext.retryId + 1 ))
+        self ! runCmd.copy(jobContext = runCmd.jobContext.copy(retryId = runCmd.jobContext.retryId + 1 ))  //继续执行；
       }else{
         // 如果reRun失败则退出此次调用
-        runCmd.replyTo ! TaskEvent.MaxRetryReached(runCmd.jobContext)
+        runCmd.replyTo ! TaskEvent.MaxRetryReached(runCmd.jobContext)  //已到达最大重试次数，停止任务；
         context.stop(self)
       }
   }
@@ -258,6 +262,7 @@ class InterruptableTask(task:Task, jobContext: JobContext, parallel:Int){
 
   /**
     * FutureTask封装Task使其可以中断
+    * 这里 taskIndex( 0 ~ paraller-1 ) 竟然取的 retryId？
     */
   private val futureTask = new FutureTask[Long](new InnerTask(task,jobContext,jobContext.retryId,parallel))
 
