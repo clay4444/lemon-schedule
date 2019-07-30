@@ -21,6 +21,13 @@ import scala.util.{Failure, Success, Try}
   * 用actor封装task类,用来接收作业调度信息，控制并发数量
   * 一个TaskActor与一个Task具体实现一一对应；TaskActor调用Task对应的接口，进行初始化等操作，但是不负责具体的执行
   * @param taskActorInfo TaskActor参数信息
+  *
+  *
+  * TaskTrackerActor 和 TaskActor 都是worker初始化的时候自己启动的，TaskTrackerActor对应jar包，TaskActor对应class，
+  * worker这个角色启动的时候所有Task class都初始化好了，Task实例都已经初始化完了，
+  *
+  * 每次任务调度的消息发到这里的时候，会启动一个新的Actor(TaskRunner)，运行，
+  *
   */
 class TaskActor(taskActorInfo:TaskActorInfo) extends SimpleActor{
   /**
@@ -54,7 +61,7 @@ class TaskActor(taskActorInfo:TaskActorInfo) extends SimpleActor{
   override def userDefineEventReceive: Receive = {
 
     /**
-      * 这个RunTask命令应该是scheduler节点发过来的，也就是一个调度命令
+      * 0、  这个RunTask命令应该是scheduler节点发过来的，也就是一个调度命令
       * 这个命令是由scheduler节点发出的，先发给TaskTracker，然后转发给TaskActor
       */
     case runCmd @ TaskActorCommand.RunTask( jobContext,replyTo ) =>
@@ -67,12 +74,12 @@ class TaskActor(taskActorInfo:TaskActorInfo) extends SimpleActor{
         //构建TaskRunnnerActor 需要的info
         val taskRunnerInfo = TaskRunnerInfo(taskActorInfo.cluster,taskActorInfo.group,task,taskActorInfo.classInfo)
 
-        //创建 TaskRunnerActor，每次调度都会生成新的TaskRunnerActor，actor name是 (jobName-triggerTime)
+        //创建 TaskRunnerActor，每次调度都会生成新的 TaskRunnerActor，actor name是 (jobName-triggerTime)
         val taskRunner = context.actorOf(Props.create(classOf[TaskRunnerActor],taskRunnerInfo),jobContext.job.name+"-"+jobContext.schedule.triggerTime)
-        context.watchWith(taskRunner,TaskRunnerEvent.Stopped(taskRunner))
-        replyTo ! TaskEvent.Started(taskRunner,jobContext)
+        context.watchWith(taskRunner,TaskRunnerEvent.Stopped(taskRunner))  //death watch
+        replyTo ! TaskEvent.Started(taskRunner,jobContext)   //告诉scheduler，TaskRunner已经启动了；
 
-        taskRunner ! runCmd
+        taskRunner ! runCmd  //告诉TaskRunner，开始执行，
 
       }else{
         // 如果超过了并发，则告诉发送方需要重新调度，发送方应该是schedulerNode
@@ -80,6 +87,8 @@ class TaskActor(taskActorInfo:TaskActorInfo) extends SimpleActor{
         // TODO: 2018年4月11日13:41:39 此处去掉并发的限制，
         replyTo ! TaskActorEvent.Overloaded(jobContext)
       }
+
+    //death watch收到的消息，TaskRunner停止运行
     case evt @ TaskRunnerEvent.Stopped(taskRunner) =>
       val stopAt = System.currentTimeMillis()
       executingTaskNum -= 1
@@ -101,9 +110,9 @@ class TaskRunnerActor(taskRunnerInfo:TaskRunnerInfo) extends SimpleActor{
     * 可中断的Task
     */
   private var interruptableTask:InterruptableTask = _
-  private val checkDependencySleepTime = config.getDuration("worker.check-dependency-sleep-time").toMillis
-  private var dependencyPassed = false
-  private var sendWaiting = false
+  private val checkDependencySleepTime = config.getDuration("worker.check-dependency-sleep-time").toMillis   //检查依赖是否完成的时间间隔
+  private var dependencyPassed = false  //默认依赖检查不通过
+  private var sendWaiting = false      //这个玩意的作用就是
   // 如果没有达到指定次数则进行重试
   /**
     * 是否可以重新运行
@@ -121,14 +130,14 @@ class TaskRunnerActor(taskRunnerInfo:TaskRunnerInfo) extends SimpleActor{
         self ! runCmd
       }
     /**
-      * 收到运行作业的命令
+      * 1、   收到运行作业的命令
       * 首先检查作业的依赖是否成功，需要考虑检查作业的时限和次数，以及每次检查的时间间隔
       * 依赖检查通过后，就可以实际的运行作业了
       */
     case cmd:TaskActorCommand.RunTask =>
       runCmd = cmd
 
-      if(dependencyPassed){
+      if(dependencyPassed){ //依赖检查通过后，开始执行
         interruptableTask = new InterruptableTask(taskRunnerInfo.task,runCmd.jobContext,taskRunnerInfo.classInfo.parallel)
         // 超时时间，取最小值，单位是秒
         val timeout = taskRunnerInfo.classInfo.defaultTimeOut.min(runCmd.jobContext.job.timeOut)
@@ -157,7 +166,7 @@ class TaskRunnerActor(taskRunnerInfo:TaskRunnerInfo) extends SimpleActor{
             self ! TaskEvent.Failed(runException.getMessage,runCmd.jobContext)
         }
       }else{
-        if(!sendWaiting){
+        if(!sendWaiting){  //这个sendWaiting存在的意义就是在任务刚开始运行的时候设置为 watting ？
           runCmd.replyTo ! TaskEvent.Waiting(runCmd.jobContext)
           sendWaiting = true
         }

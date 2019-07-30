@@ -68,7 +68,7 @@ class JobTaskDispatcherActor private (dataAccessProxy: ActorRef,nodeAnchor:Strin
 
       //以triggerTime为基准，偏移Job指定的偏移量，做什么的？
       val jobContext = JobContext(job,schedulePo,Utils.calcPostOffsetTime(triggerTime,job.dataTimeOffset,job.dataTimeOffsetUnit))
-      val runCommand = TaskActorCommand.RunTask(jobContext,aggregatorActor)  //jobContext, replyTo
+      val runCommand = TaskActorCommand.RunTask(jobContext,aggregatorActor)  //jobContext, replyTo(返回的消息发给做任务状态聚合的Actor)
       val routees = taskTrackerRouter.routees.filter{
         case ActorRefRoutee( actorRef ) =>
           val cluster = actorRef.path.address.system   //集群名称，

@@ -40,6 +40,7 @@ object TaskTrackerCommand{
   * TaskActor 命令消息
   */
 object TaskActorCommand{
+  //给TaskRunner发的，
   final case class RunTask(jobContext: JobContext,replyTo:ActorRef) extends ReplyCommand
   //final case class CancelTask(replyTo:ActorRef)extends ReplyCommand
 }
