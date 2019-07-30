@@ -65,8 +65,15 @@ class TaskWorkerNode extends ClusterNode{
 
       replyTo ! TaskTrackerEvent.TaskTrackerStarted(taskTracker)
 
+    /**
+      * 2.1、 TaskTracker启动成功
+      */
     case evt @ TaskTrackerEvent.TaskTrackerStarted(taskTracker) =>
       log.info(s"task tracker [$taskTracker] started at ${evt.at}")
+
+    /**
+      * 2.2、 TaskTracker启动失败
+      */
     case evt @ TaskTrackerEvent.TaskTrackerStopped(taskTracker) =>
       val stopAt = System.currentTimeMillis()
       log.warning(s"task tracker [$taskTracker] alive time is ${Utils.formatAliveTime(evt.at,stopAt)}")

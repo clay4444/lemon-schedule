@@ -55,6 +55,7 @@ class TaskActor(taskActorInfo:TaskActorInfo) extends SimpleActor{
 
     /**
       * 这个RunTask命令应该是scheduler节点发过来的，也就是一个调度命令
+      * 这个命令是由scheduler节点发出的，先发给TaskTracker，然后转发给TaskActor
       */
     case runCmd @ TaskActorCommand.RunTask( jobContext,replyTo ) =>
       log.info(s"收到了runCmd命令 $runCmd")
@@ -66,6 +67,7 @@ class TaskActor(taskActorInfo:TaskActorInfo) extends SimpleActor{
         //构建TaskRunnnerActor 需要的info
         val taskRunnerInfo = TaskRunnerInfo(taskActorInfo.cluster,taskActorInfo.group,task,taskActorInfo.classInfo)
 
+        //创建 TaskRunnerActor，每次调度都会生成新的TaskRunnerActor，actor name是 (jobName-triggerTime)
         val taskRunner = context.actorOf(Props.create(classOf[TaskRunnerActor],taskRunnerInfo),jobContext.job.name+"-"+jobContext.schedule.triggerTime)
         context.watchWith(taskRunner,TaskRunnerEvent.Stopped(taskRunner))
         replyTo ! TaskEvent.Started(taskRunner,jobContext)

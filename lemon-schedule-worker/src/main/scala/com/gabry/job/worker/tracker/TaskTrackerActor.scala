@@ -61,7 +61,7 @@ class TaskTrackerActor(taskTrackerInfo:TaskTrackerInfo) extends SimpleActor{
     /**
       * 1、 收到StartTaskActor消息，开始执行Task，
       */
-    case TaskTrackerCommand.StartTaskActor(info,claz,replyTo)=>   //info是classInfo，类信息
+    case TaskTrackerCommand.StartTaskActor(info,claz,replyTo)=>   //info是 classInfo，类信息
 
       val taskActorInfo = TaskActorInfo(taskTrackerInfo.cluster,taskTrackerInfo.group,claz,info)  //最后的info是 classInfo，类信息
 
