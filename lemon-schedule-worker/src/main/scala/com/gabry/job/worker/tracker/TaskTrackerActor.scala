@@ -65,7 +65,7 @@ class TaskTrackerActor(taskTrackerInfo:TaskTrackerInfo) extends SimpleActor{
 
       val taskActorInfo = TaskActorInfo(taskTrackerInfo.cluster,taskTrackerInfo.group,claz,info)  //最后的info是 classInfo，类信息
 
-      val taskActor = context.actorOf(Props.create(classOf[TaskActor],taskActorInfo),info.name)   //构建 TaskActor(对应一个实现了Task的类)
+      val taskActor = context.actorOf(Props.create(classOf[TaskActor],taskActorInfo),info.name)   //构建 TaskActor(对应一个实现了Task的类), name为Task class name
 
       // TaskActor负责某一个类的初始化、执行等操作，启动成功后告诉汇报者 TaskActorEvent.Started 消息
       replyTo ! TaskActorEvent.Started(taskActor,info)

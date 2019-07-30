@@ -52,6 +52,10 @@ class TaskActor(taskActorInfo:TaskActorInfo) extends SimpleActor{
     * 处理收到的消息
     */
   override def userDefineEventReceive: Receive = {
+
+    /**
+      * 这个RunTask命令应该是scheduler节点发过来的，也就是一个调度命令
+      */
     case runCmd @ TaskActorCommand.RunTask( jobContext,replyTo ) =>
       log.info(s"收到了runCmd命令 $runCmd")
       // 收到调度命令后，判断当前并发度是否满足条件，满足后创建TaskRunner执行具体的业务逻辑
@@ -59,6 +63,7 @@ class TaskActor(taskActorInfo:TaskActorInfo) extends SimpleActor{
 
         executingTaskNum += 1
 
+        //构建TaskRunnnerActor 需要的info
         val taskRunnerInfo = TaskRunnerInfo(taskActorInfo.cluster,taskActorInfo.group,task,taskActorInfo.classInfo)
 
         val taskRunner = context.actorOf(Props.create(classOf[TaskRunnerActor],taskRunnerInfo),jobContext.job.name+"-"+jobContext.schedule.triggerTime)
