@@ -83,10 +83,11 @@ class QuartzSchedulerExtension(system: ExtendedActorSystem) extends Extension {
    */
 
   /**
-    * 返回了两个QuartzSchedule，
+    * 返回了两个 QuartzSchedule[]
     * 一个是 QuartzSchedule 做任务的分发的，
     * 一个是 JobScheduler   生成任务计划表的，
     * 并构建好了他们各自的 trigger
+    * key是job名
     */
   var schedules: immutable.Map[String, QuartzSchedule] = QuartzSchedules(config, defaultTimezone).map { kv =>
     kv._1.toUpperCase -> kv._2

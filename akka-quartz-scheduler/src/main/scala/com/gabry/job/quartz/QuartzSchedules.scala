@@ -161,6 +161,6 @@ final class QuartzCronSchedule(val name: String,
 
   // Do *NOT* build, we need the uncompleted builder. I hate the Quartz API, truly.
   //创建一个CronScheduleBuilder,为什么需要一个未完成的builder呢？ 因为quartz要求的参数是不能build
-  val schedule = CronScheduleBuilder.cronSchedule(expression).inTimeZone(timezone)
+  val schedule = CronScheduleBuilder.cronSchedule(expression).inTimeZone(timezone)  //构建trigger用的；
 }
 
